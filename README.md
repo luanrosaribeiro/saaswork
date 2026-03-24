@@ -5,20 +5,20 @@ O SaaSWork é um aplicativo mobile desenvolvido com React Native que tem como ob
 A aplicação segue o modelo Software as a Service (SaaS), oferecendo uma plataforma centralizada para busca, cadastro e gerenciamento de vagas, utilizando Firebase para backend, autenticação e banco de dados.
 
 🚀 Funcionalidades
-  🔐 Autenticação de usuários (login e cadastro)
-  👤 Gerenciamento de perfil do estudante
-  🔎 Busca de vagas de estágio
-  📄 Visualização de detalhes das vagas
-  ⭐ Favoritar vagas
-  📊 Armazenamento em tempo real com Firebase
-  ☁️ Arquitetura baseada em SaaS
+  🔐 Autenticação de usuários (login e cadastro)\n
+  👤 Gerenciamento de perfil do estudante\n
+  🔎 Busca de vagas de estágio\n
+  📄 Visualização de detalhes das vagas\n
+  ⭐ Favoritar vagas\n
+  📊 Armazenamento em tempo real com Firebase\n
+  ☁️ Arquitetura baseada em SaaS\n
 
 🛠️ Tecnologias Utilizadas
-    React Native
-    TypeScript
-    Firebase
-    Firebase Authentication
-    Firestore Database
+    React Native\n
+    TypeScript\n
+    Firebase\n
+    Firebase Authentication\n
+    Firestore Database\n
     
 🎯 Objetivo do Projeto
 
