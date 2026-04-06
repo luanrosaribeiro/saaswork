@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Image,
   ScrollView,
   KeyboardAvoidingView,
@@ -12,12 +11,14 @@ import {
 } from "react-native";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import styles from "./assets/style/estilo";  
+import styles from "../assets/style/estilo";
+import { useNavigation } from "@react-navigation/native";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const navigation = useNavigation<any>();
 
   const handleLogin = () => {
     console.log("Login:", { email, password });
@@ -35,7 +36,7 @@ export default function Login() {
         >
           <View style={styles.logoContainer}>
             <Image
-              source={require("../../assets/logo.png")}
+              source={require("../assets/images/logo.png")}
               style={styles.logo}
               resizeMode="contain"
             />
@@ -49,7 +50,7 @@ export default function Login() {
               <Text style={styles.label}>Email</Text>
 
               <View style={styles.inputWrapper}>
-                <Mail size={20} color="#9ca3af" style={styles.iconLeft} />
+                <Mail size={20} color="#9ca3af" />
 
                 <TextInput
                   placeholder="seu.email@exemplo.com"
@@ -63,7 +64,7 @@ export default function Login() {
               <Text style={styles.label}>Senha</Text>
 
               <View style={styles.inputWrapper}>
-                <Lock size={20} color="#9ca3af" style={styles.iconLeft} />
+                <Lock size={20} color="#9ca3af" />
 
                 <TextInput
                   placeholder="••••••••"
@@ -75,7 +76,6 @@ export default function Login() {
 
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
-                  style={styles.iconRight}
                 >
                   {showPassword ? (
                     <EyeOff size={20} color="#9ca3af" />
@@ -86,39 +86,26 @@ export default function Login() {
               </View>
             </View>
 
-            {/* Esqueceu senha */}
             <TouchableOpacity style={styles.forgotPassword}>
               <Text style={styles.forgotText}>Esqueceu a senha?</Text>
             </TouchableOpacity>
 
-            {/* Botão */}
-            <TouchableOpacity style={styles.button} onPress={handleLogin}>
+            <TouchableOpacity style={styles.buttonPrimary} onPress={handleLogin}>
               <Text style={styles.buttonText}>Entrar</Text>
             </TouchableOpacity>
 
-            {/* Divider */}
             <View style={styles.divider}>
               <View style={styles.line} />
               <Text style={styles.dividerText}>ou</Text>
               <View style={styles.line} />
             </View>
 
-            {/* Social */}
-            <TouchableOpacity style={styles.socialButton}>
-              <Text>Continuar com Google</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.socialButton}>
-              <Text>Continuar com GitHub</Text>
-            </TouchableOpacity>
-
-            {/* Cadastro */}
-            <View style={styles.signup}>
-              <Text style={styles.signupText}>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
                 Não tem uma conta?{" "}
               </Text>
-              <TouchableOpacity>
-                <Text style={styles.signupLink}>Cadastre-se</Text>
+              <TouchableOpacity onPress={() => navigation.navigate("Cadastrar Usuário")}>
+                <Text style={styles.footerLink}>Cadastre-se</Text>
               </TouchableOpacity>
             </View>
           </View>
