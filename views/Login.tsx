@@ -22,6 +22,7 @@ export default function Login() {
 
   const handleLogin = () => {
     console.log("Login:", { email, password });
+    navigation.reset({ index: 0, routes: [{ name: "Main" }] });
   };
 
   return (
