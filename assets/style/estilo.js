@@ -761,4 +761,38 @@ export default StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+
+  // ── App header (header global escuro com marca) ───────────────────────────────
+
+  appHeader: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+
+  appHeaderTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#ffffff",
+    marginBottom: 2,
+  },
+
+  appHeaderSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.75)",
+  },
+
+  // ── Page title card (card branco de título de tela) ───────────────────────────
+
+  pageTitleCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
 });

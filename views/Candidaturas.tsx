@@ -99,11 +99,12 @@ export default function CandidaturasScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
-            {/* Header */}
-            <View style={styles.screenHeader}>
-                <Text style={styles.screenHeaderTitle}>Minhas Candidaturas</Text>
-                <Text style={styles.screenHeaderSubtitle}>
-                    Acompanhe o status das suas candidaturas
+
+            {/* ── Header escuro com marca ── */}
+            <View style={styles.appHeader}>
+                <Text style={styles.appHeaderTitle}>SaasWork</Text>
+                <Text style={styles.appHeaderSubtitle}>
+                    Inserção Profissional de Estudantes
                 </Text>
             </View>
 
@@ -111,6 +112,14 @@ export default function CandidaturasScreen() {
                 contentContainerStyle={styles.screenContent}
                 showsVerticalScrollIndicator={false}
             >
+                {/* ── Card de título da tela ── */}
+                <View style={styles.pageTitleCard}>
+                    <Text style={styles.screenHeaderTitle}>Minhas Candidaturas</Text>
+                    <Text style={styles.screenHeaderSubtitle}>
+                        Acompanhe o status das suas candidaturas
+                    </Text>
+                </View>
+
                 {candidaturas.length === 0 ? (
                     /* Estado vazio */
                     <View style={styles.emptyCard}>

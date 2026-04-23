@@ -9,6 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Alert
 } from "react-native";
 import {
     User,
@@ -32,17 +33,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import styles from "../assets/style/estilo";
 import { useNavigation } from "@react-navigation/native";
+import { AuthService } from '../services/AuthService';
+import { Aluno } from '../models/Aluno';
+import { Instituicao } from '../models/Instituicao';
+import { Endereco } from '../models/Endereco';
+import { Escolaridade } from '../models/Escolaridade';
 
 type UserType = "aluno" | "instituicao" | null;
-
-interface Escolaridade {
-    id: string;
-    nivelEscolaridade: string;
-    instituicao: string;
-    curso: string;
-    anoInicio: string;
-    anoConclusao: string;
-}
 
 const anoAtual = new Date().getFullYear();
 const anos = Array.from({ length: anoAtual - 1969 }, (_, i) => String(anoAtual - i));
@@ -284,6 +281,7 @@ export default function CadastroUser() {
     const [showSenha, setShowSenha] = useState(false);
     const [showConfirmaSenha, setShowConfirmaSenha] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
+    const [loading, setLoading] = useState(false);
 
     const [formData, setFormData] = useState({
         nome: "",
@@ -381,7 +379,7 @@ export default function CadastroUser() {
         ) {
             setEscolaridades((prev) => [
                 ...prev,
-                { id: Date.now().toString(), ...escolaridadeAtual },
+                new Escolaridade({ id: Date.now().toString(), ...escolaridadeAtual }),
             ]);
             setEscolaridadeAtual({
                 nivelEscolaridade: "",
@@ -397,18 +395,66 @@ export default function CadastroUser() {
         setEscolaridades((prev) => prev.filter((e) => e.id !== id));
     };
 
-    const handleAvancar = () => {
+    const handleAvancar = async () => {
         if (currentStep < totalSteps) {
             setCurrentStep(currentStep + 1);
-        } else {
-            const finalData =
-                userType === "aluno"
-                    ? { ...formData, escolaridades, userType }
-                    : { ...formData, userType };
-            console.log("Finalizar cadastro:", finalData);
-            navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+            return;
         }
-    };
+
+        // ── Último step: dispara o cadastro ──────────────────────────────────────
+        setLoading(true);
+        try {
+            const endereco = new Endereco({
+            cep: formData.cep,
+            rua: formData.rua,
+            numero: formData.numero,
+            complemento: formData.complemento,
+            bairro: formData.bairro,
+            cidade: formData.cidade,
+            estado: formData.estado,
+            });
+
+            let usuario: Aluno | Instituicao;
+
+            if (userType === 'aluno') {
+            usuario = new Aluno({
+                nome: formData.nome,
+                email: formData.email,
+                telefone: formData.telefone,
+                endereco,
+                escolaridades: escolaridades.map((e) => new Escolaridade(e)),
+            });
+            } else {
+            usuario = new Instituicao({
+                nome: formData.responsavel,   // nome do responsável como nome base
+                email: formData.email,
+                telefone: formData.telefone,
+                endereco,
+                nomeEmpresa: formData.nomeEmpresa,
+                cnpj: formData.cnpj,
+                responsavel: formData.responsavel,
+            });
+            }
+
+            await AuthService.cadastrar(formData.email, formData.senha, usuario);
+
+            Alert.alert('Sucesso!', 'Cadastro realizado com sucesso.');
+            navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+
+        } catch (error: any) {
+            // Tradução dos erros mais comuns do Firebase
+            const mensagens: Record<string, string> = {
+            'auth/email-already-in-use': 'Este e-mail já está cadastrado.',
+            'auth/invalid-email': 'E-mail inválido.',
+            'auth/weak-password': 'A senha deve ter pelo menos 6 caracteres.',
+            };
+
+            const msg = mensagens[error?.code] ?? 'Erro ao cadastrar. Tente novamente.';
+            Alert.alert('Erro', msg);
+        } finally {
+            setLoading(false);
+        }
+        };
 
     const canFinish =
         currentStep === totalSteps &&
@@ -978,21 +1024,25 @@ export default function CadastroUser() {
                                         </TouchableOpacity>
 
                                         <TouchableOpacity
-                                            style={[
-                                                styles.buttonPrimary,
-                                                currentStep === totalSteps &&
-                                                    !canFinish &&
-                                                    styles.buttonDisabled,
-                                            ]}
-                                            onPress={handleAvancar}
-                                            disabled={currentStep === totalSteps && !canFinish}
+                                        style={[
+                                            styles.buttonPrimary,
+                                            currentStep === totalSteps && !canFinish && styles.buttonDisabled,
+                                        ]}
+                                        onPress={handleAvancar}
+                                        disabled={(currentStep === totalSteps && !canFinish) || loading}
                                         >
-                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                                <Text style={styles.buttonText}>
-                                                    {currentStep < totalSteps ? "Avançar" : "Finalizar"}
-                                                </Text>
-                                                {currentStep < totalSteps && (
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                {loading ? (
+                                                <ActivityIndicator size="small" color="#fff" />
+                                                ) : (
+                                                <>
+                                                    <Text style={styles.buttonText}>
+                                                    {currentStep < totalSteps ? 'Avançar' : 'Finalizar'}
+                                                    </Text>
+                                                    {currentStep < totalSteps && (
                                                     <ChevronRight size={18} color="#fff" />
+                                                    )}
+                                                </>
                                                 )}
                                             </View>
                                         </TouchableOpacity>
