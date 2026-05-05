@@ -317,16 +317,112 @@ export default function CadastroUser() {
             ? ["Dados Pessoais", "Endereço", "Escolaridade"]
             : ["Dados da Empresa", "Endereço"];
 
-    const handleInputChange = (name: string, value: string) => {
+    const handleInputChange = (name: keyof typeof formData, value: string) => {
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleEscolaridadeChange = (name: string, value: string) => {
+    const handleEscolaridadeChange = (
+        name: keyof typeof escolaridadeAtual,
+        value: string
+    ) => {
         setEscolaridadeAtual((prev) => ({ ...prev, [name]: value }));
     };
 
+    const apenasNumeros = (value: string) => value.replace(/\D/g, "");
+
+    const campoVazio = (value: string) => !value.trim();
+
+    const emailValido = (email: string) => /\S+@\S+\.\S+/.test(email.trim());
+
+    const validarDadosAcesso = () => {
+        if (!emailValido(formData.email)) {
+            Alert.alert("Atenção", "Informe um e-mail válido.");
+            return false;
+        }
+
+        if (formData.senha.length < 6) {
+            Alert.alert("Atenção", "A senha deve ter pelo menos 6 caracteres.");
+            return false;
+        }
+
+        if (formData.senha !== formData.confirmaSenha) {
+            Alert.alert("Atenção", "A senha e a confirmação precisam ser iguais.");
+            return false;
+        }
+
+        return true;
+    };
+
+    const validarStepAtual = () => {
+        if (userType === "aluno" && currentStep === 1) {
+            if (campoVazio(formData.nome)) {
+                Alert.alert("Atenção", "Informe seu nome completo.");
+                return false;
+            }
+
+            if (apenasNumeros(formData.telefone).length < 10) {
+                Alert.alert("Atenção", "Informe um telefone válido.");
+                return false;
+            }
+
+            return validarDadosAcesso();
+        }
+
+        if (userType === "instituicao" && currentStep === 1) {
+            if (campoVazio(formData.nomeEmpresa)) {
+                Alert.alert("Atenção", "Informe o nome da empresa.");
+                return false;
+            }
+
+            if (apenasNumeros(formData.cnpj).length !== 14) {
+                Alert.alert("Atenção", "Informe um CNPJ válido.");
+                return false;
+            }
+
+            if (campoVazio(formData.responsavel)) {
+                Alert.alert("Atenção", "Informe o nome do responsável.");
+                return false;
+            }
+
+            if (apenasNumeros(formData.telefone).length < 10) {
+                Alert.alert("Atenção", "Informe um telefone válido.");
+                return false;
+            }
+
+            return validarDadosAcesso();
+        }
+
+        if (currentStep === 2) {
+            const camposObrigatorios = [
+                formData.cep,
+                formData.rua,
+                formData.numero,
+                formData.bairro,
+                formData.cidade,
+                formData.estado,
+            ];
+
+            if (apenasNumeros(formData.cep).length !== 8) {
+                Alert.alert("Atenção", "Informe um CEP válido.");
+                return false;
+            }
+
+            if (camposObrigatorios.some(campoVazio)) {
+                Alert.alert("Atenção", "Preencha os campos obrigatórios do endereço.");
+                return false;
+            }
+        }
+
+        if (userType === "aluno" && currentStep === 3 && escolaridades.length === 0) {
+            Alert.alert("Atenção", "Adicione pelo menos uma formação.");
+            return false;
+        }
+
+        return true;
+    };
+
     const handleTelefone = (value: string) => {
-        const nums = value.replace(/\D/g, "").slice(0, 11);
+        const nums = apenasNumeros(value).slice(0, 11);
         let masked = nums;
         if (nums.length > 0) masked = `(${nums.slice(0, 2)}`;
         if (nums.length > 2) masked += `) ${nums.slice(2, 7)}`;
@@ -335,7 +431,7 @@ export default function CadastroUser() {
     };
 
     const handleCnpj = (value: string) => {
-        const nums = value.replace(/\D/g, "").slice(0, 14);
+        const nums = apenasNumeros(value).slice(0, 14);
         let masked = nums;
         if (nums.length > 2)  masked = `${nums.slice(0,2)}.${nums.slice(2)}`;
         if (nums.length > 5)  masked = `${nums.slice(0,2)}.${nums.slice(2,5)}.${nums.slice(5)}`;
@@ -345,7 +441,7 @@ export default function CadastroUser() {
     };
 
     const handleCep = async (value: string) => {
-        const nums = value.replace(/\D/g, "").slice(0, 8);
+        const nums = apenasNumeros(value).slice(0, 8);
         let masked = nums;
         if (nums.length > 5) masked = `${nums.slice(0, 5)}-${nums.slice(5)}`;
         handleInputChange("cep", masked);
@@ -354,41 +450,62 @@ export default function CadastroUser() {
             setLoadingCep(true);
             try {
                 const res = await fetch(`https://viacep.com.br/ws/${nums}/json/`);
-                const data = await res.json();
-                if (!data.erro) {
-                    setFormData((prev) => ({
-                        ...prev,
-                        cep: masked,
-                        rua: data.logradouro || "",
-                        bairro: data.bairro || "",
-                        cidade: data.localidade || "",
-                        estado: data.uf || "",
-                    }));
+                if (!res.ok) {
+                    throw new Error("Falha ao consultar CEP.");
                 }
-            } catch (_) {}
-            setLoadingCep(false);
+
+                const data = await res.json();
+                if (data.erro) {
+                    Alert.alert("Atenção", "CEP não encontrado.");
+                    return;
+                }
+
+                setFormData((prev) => ({
+                    ...prev,
+                    cep: masked,
+                    rua: data.logradouro || "",
+                    bairro: data.bairro || "",
+                    cidade: data.localidade || "",
+                    estado: data.uf || "",
+                }));
+            } catch (_) {
+                Alert.alert("Atenção", "Não foi possível consultar o CEP agora.");
+            } finally {
+                setLoadingCep(false);
+            }
         }
     };
 
     const adicionarEscolaridade = () => {
         if (
-            escolaridadeAtual.nivelEscolaridade &&
-            escolaridadeAtual.instituicao &&
-            escolaridadeAtual.curso &&
-            escolaridadeAtual.anoInicio
+            !escolaridadeAtual.nivelEscolaridade ||
+            campoVazio(escolaridadeAtual.instituicao) ||
+            campoVazio(escolaridadeAtual.curso) ||
+            !escolaridadeAtual.anoInicio
         ) {
-            setEscolaridades((prev) => [
-                ...prev,
-                new Escolaridade({ id: Date.now().toString(), ...escolaridadeAtual }),
-            ]);
-            setEscolaridadeAtual({
-                nivelEscolaridade: "",
-                instituicao: "",
-                curso: "",
-                anoInicio: "",
-                anoConclusao: "",
-            });
+            Alert.alert("Atenção", "Preencha os dados obrigatórios da formação.");
+            return;
         }
+
+        if (
+            escolaridadeAtual.anoConclusao &&
+            Number(escolaridadeAtual.anoConclusao) < Number(escolaridadeAtual.anoInicio)
+        ) {
+            Alert.alert("Atenção", "O ano de conclusão não pode ser menor que o ano de início.");
+            return;
+        }
+
+        setEscolaridades((prev) => [
+            ...prev,
+            new Escolaridade({ id: Date.now().toString(), ...escolaridadeAtual }),
+        ]);
+        setEscolaridadeAtual({
+            nivelEscolaridade: "",
+            instituicao: "",
+            curso: "",
+            anoInicio: "",
+            anoConclusao: "",
+        });
     };
 
     const removerEscolaridade = (id: string) => {
@@ -396,6 +513,10 @@ export default function CadastroUser() {
     };
 
     const handleAvancar = async () => {
+        if (!validarStepAtual()) {
+            return;
+        }
+
         if (currentStep < totalSteps) {
             setCurrentStep(currentStep + 1);
             return;
@@ -405,38 +526,38 @@ export default function CadastroUser() {
         setLoading(true);
         try {
             const endereco = new Endereco({
-            cep: formData.cep,
-            rua: formData.rua,
-            numero: formData.numero,
-            complemento: formData.complemento,
-            bairro: formData.bairro,
-            cidade: formData.cidade,
-            estado: formData.estado,
+                cep: formData.cep,
+                rua: formData.rua,
+                numero: formData.numero,
+                complemento: formData.complemento,
+                bairro: formData.bairro,
+                cidade: formData.cidade,
+                estado: formData.estado,
             });
 
             let usuario: Aluno | Instituicao;
 
             if (userType === 'aluno') {
-            usuario = new Aluno({
-                nome: formData.nome,
-                email: formData.email,
-                telefone: formData.telefone,
-                endereco,
-                escolaridades: escolaridades.map((e) => new Escolaridade(e)),
-            });
+                usuario = new Aluno({
+                    nome: formData.nome.trim(),
+                    email: formData.email.trim(),
+                    telefone: formData.telefone,
+                    endereco,
+                    escolaridades: escolaridades.map((e) => new Escolaridade(e)),
+                });
             } else {
-            usuario = new Instituicao({
-                nome: formData.responsavel,   // nome do responsável como nome base
-                email: formData.email,
-                telefone: formData.telefone,
-                endereco,
-                nomeEmpresa: formData.nomeEmpresa,
-                cnpj: formData.cnpj,
-                responsavel: formData.responsavel,
-            });
+                usuario = new Instituicao({
+                    nome: formData.responsavel.trim(),
+                    email: formData.email.trim(),
+                    telefone: formData.telefone,
+                    endereco,
+                    nomeEmpresa: formData.nomeEmpresa.trim(),
+                    cnpj: formData.cnpj,
+                    responsavel: formData.responsavel.trim(),
+                });
             }
 
-            await AuthService.cadastrar(formData.email, formData.senha, usuario);
+            await AuthService.cadastrar(formData.email.trim(), formData.senha, usuario);
 
             Alert.alert('Sucesso!', 'Cadastro realizado com sucesso.');
             navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
