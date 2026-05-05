@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   View,
   Text,
   TextInput,
@@ -7,22 +9,48 @@ import {
   Image,
   ScrollView,
   KeyboardAvoidingView,
-  Platform
+  Platform,
 } from "react-native";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import styles from "../assets/style/estilo";
 import { useNavigation } from "@react-navigation/native";
+import { AuthService } from "../services/AuthService";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
   const navigation = useNavigation<any>();
 
-  const handleLogin = () => {
-    console.log("Login:", { email, password });
-    navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert("Atenção", "Informe e-mail e senha para entrar.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const usuario = await AuthService.login(email.trim(), password);
+      const routeName = usuario.tipo === "aluno" ? "HomeCandidato" : "HomeInstituicao";
+
+      navigation.reset({ index: 0, routes: [{ name: routeName }] });
+    } catch (error: any) {
+      const mensagens: Record<string, string> = {
+        "auth/invalid-email": "E-mail inválido.",
+        "auth/invalid-credential": "E-mail ou senha inválidos.",
+        "auth/user-not-found": "Usuário não encontrado.",
+        "auth/wrong-password": "Senha incorreta.",
+        "auth/too-many-requests": "Muitas tentativas. Tente novamente mais tarde.",
+      };
+
+      const msg = mensagens[error?.code] ?? error?.message ?? "Erro ao entrar. Tente novamente.";
+      Alert.alert("Erro", msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -58,6 +86,10 @@ export default function Login() {
                   value={email}
                   onChangeText={setEmail}
                   style={styles.input}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholderTextColor="#9ca3af"
                 />
               </View>
             </View>
@@ -73,6 +105,7 @@ export default function Login() {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   style={styles.input}
+                  placeholderTextColor="#9ca3af"
                 />
 
                 <TouchableOpacity
@@ -91,8 +124,17 @@ export default function Login() {
               <Text style={styles.forgotText}>Esqueceu a senha?</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.buttonPrimary} onPress={handleLogin}>
-              <Text style={styles.buttonText}>Entrar</Text>
+            <TouchableOpacity
+              style={[styles.buttonPrimary, loading && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Entrar</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.divider}>
