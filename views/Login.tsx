@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import styles from "../assets/style/estilo";
 import { useNavigation } from "@react-navigation/native";
 import { AuthService } from "../services/AuthService";
+import { useUser } from "../context/UserContext"; 
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -23,6 +24,7 @@ export default function Login() {
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const navigation = useNavigation<any>();
+  const { setUsuario } = useUser(); 
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -34,10 +36,12 @@ export default function Login() {
 
     try {
       const usuario = await AuthService.login(email.trim(), password);
-      const routeName = usuario.tipo === "aluno" ? "HomeCandidato" : "HomeInstituicao";
+      setUsuario(usuario); 
 
-      navigation.reset({ index: 0, routes: [{ name: routeName }] });
+      navigation.reset({ index: 0, routes: [{ name: "Main" }] });
     } catch (error: any) {
+      console.log("Código do erro:", error?.code);
+      console.log("Mensagem:", error?.message);
       const mensagens: Record<string, string> = {
         "auth/invalid-email": "E-mail inválido.",
         "auth/invalid-credential": "E-mail ou senha inválidos.",
@@ -45,9 +49,10 @@ export default function Login() {
         "auth/wrong-password": "Senha incorreta.",
         "auth/too-many-requests": "Muitas tentativas. Tente novamente mais tarde.",
       };
-
       const msg = mensagens[error?.code] ?? error?.message ?? "Erro ao entrar. Tente novamente.";
-      Alert.alert("Erro", msg);
+      setLoading(false); // ← para o loading ANTES do Alert
+      Alert.alert("Erro", msg); // ← depois
+      return;   
     } finally {
       setLoading(false);
     }
@@ -77,10 +82,8 @@ export default function Login() {
           <View style={styles.form}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email</Text>
-
               <View style={styles.inputWrapper}>
                 <Mail size={20} color="#9ca3af" />
-
                 <TextInput
                   placeholder="seu.email@exemplo.com"
                   value={email}
@@ -93,12 +96,11 @@ export default function Login() {
                 />
               </View>
             </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Senha</Text>
-
               <View style={styles.inputWrapper}>
                 <Lock size={20} color="#9ca3af" />
-
                 <TextInput
                   placeholder="••••••••"
                   value={password}
@@ -107,10 +109,7 @@ export default function Login() {
                   style={styles.input}
                   placeholderTextColor="#9ca3af"
                 />
-
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                >
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   {showPassword ? (
                     <EyeOff size={20} color="#9ca3af" />
                   ) : (
@@ -144,9 +143,7 @@ export default function Login() {
             </View>
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>
-                Não tem uma conta?{" "}
-              </Text>
+              <Text style={styles.footerText}>Não tem uma conta? </Text>
               <TouchableOpacity onPress={() => navigation.navigate("Cadastrar Usuário")}>
                 <Text style={styles.footerLink}>Cadastre-se</Text>
               </TouchableOpacity>
