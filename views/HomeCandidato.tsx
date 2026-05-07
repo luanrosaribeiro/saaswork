@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     View,
     Text,
     ScrollView,
@@ -10,13 +12,19 @@ import {
     Search,
     Filter,
     Bell,
+    Briefcase,
     MapPin,
     Clock,
     DollarSign,
     Building2,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { collection, getDocs } from "firebase/firestore";
 import styles, { colors } from "../assets/style/estilo";
+import { db } from "../config/firebase";
+import { useUser } from "../context/UserContext";
+import { AuthService } from "../services/AuthService";
+import { Aluno } from "../models/Aluno";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +32,7 @@ interface Vaga {
     id: string;
     titulo: string;
     descricao: string;
+    exigencias: string;
     instituicao: string;
     localizacao: string;
     tipo: string;
@@ -31,69 +40,35 @@ interface Vaga {
     publicadoEm: string;
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+function formatarData(data: unknown): string {
+    if (!data) return "Sem data";
 
-const VAGAS: Vaga[] = [
-    {
-        id: "1",
-        titulo: "Desenvolvedor Front-end",
-        descricao:
-            "Buscamos desenvolvedor Front-end com experiência em React, TypeScript e Tailwind CSS para atuar em projetos inovadores.",
-        instituicao: "Tech Solutions",
-        localizacao: "São Paulo, SP",
-        tipo: "CLT",
-        salario: "R$ 8.000 - R$ 12.000",
-        publicadoEm: "Há 2 dias",
-    },
-    {
-        id: "2",
-        titulo: "Designer UI/UX",
-        descricao:
-            "Procuramos designer UI/UX criativo para desenvolver interfaces intuitivas e experiências excepcionais.",
-        instituicao: "Creative Studio",
-        localizacao: "Rio de Janeiro, RJ",
-        tipo: "PJ",
-        salario: "R$ 6.000 - R$ 9.000",
-        publicadoEm: "Há 3 dias",
-    },
-    {
-        id: "3",
-        titulo: "Analista de Marketing Digital",
-        descricao:
-            "Vaga para analista com experiência em campanhas de marketing digital, SEO, SEM e análise de métricas.",
-        instituicao: "Marketing Pro",
-        localizacao: "Belo Horizonte, MG",
-        tipo: "CLT",
-        salario: "R$ 5.000 - R$ 7.000",
-        publicadoEm: "Há 5 dias",
-    },
-    {
-        id: "4",
-        titulo: "Engenheiro de Software",
-        descricao:
-            "Oportunidade para engenheiro de software sênior com conhecimento em arquitetura de sistemas e cloud computing.",
-        instituicao: "Cloud Systems",
-        localizacao: "Remoto",
-        tipo: "CLT",
-        salario: "R$ 15.000 - R$ 20.000",
-        publicadoEm: "Há 1 semana",
-    },
-    {
-        id: "5",
-        titulo: "Product Manager",
-        descricao:
-            "Buscamos Product Manager experiente para liderar o desenvolvimento de produtos digitais inovadores.",
-        instituicao: "StartupXYZ",
-        localizacao: "Curitiba, PR",
-        tipo: "CLT",
-        salario: "R$ 12.000 - R$ 18.000",
-        publicadoEm: "Há 1 semana",
-    },
-];
+    if (typeof data === "string") {
+        return data;
+    }
+
+    if (typeof data === "object" && "toDate" in data && typeof data.toDate === "function") {
+        return data.toDate().toLocaleDateString("pt-BR");
+    }
+
+    return "Sem data";
+}
+
+function formatarCargaHoraria(cargaHoraria: unknown): string {
+    const horas = Number(cargaHoraria);
+
+    if (!horas || Number.isNaN(horas)) {
+        return "Carga horária não informada";
+    }
+
+    return `${horas}h/semana`;
+}
 
 // ─── JobCard ──────────────────────────────────────────────────────────────────
 
 interface JobCardProps extends Vaga {
+    expanded: boolean;
+    onToggle: (id: string) => void;
     onCandidatar: (id: string) => void;
 }
 
@@ -101,15 +76,22 @@ function JobCard({
     id,
     titulo,
     descricao,
+    exigencias,
     instituicao,
     localizacao,
     tipo,
     salario,
     publicadoEm,
+    expanded,
+    onToggle,
     onCandidatar,
 }: JobCardProps) {
     return (
-        <View style={styles.jobCard}>
+        <TouchableOpacity
+            style={styles.jobCard}
+            onPress={() => onToggle(id)}
+            activeOpacity={0.85}
+        >
             {/* Título + instituição */}
             <View style={styles.jobCardHeader}>
                 <View style={{ flex: 1, gap: 4 }}>
@@ -120,11 +102,6 @@ function JobCard({
                     </View>
                 </View>
             </View>
-
-            {/* Descrição com limite de 2 linhas */}
-            <Text style={styles.jobDescription} numberOfLines={2}>
-                {descricao}
-            </Text>
 
             {/* Tags */}
             <View style={styles.jobTagsRow}>
@@ -144,36 +121,177 @@ function JobCard({
                 )}
             </View>
 
-            {/* Rodapé */}
-            <View style={styles.jobCardFooter}>
-                <Text style={styles.jobPublishedAt}>{publicadoEm}</Text>
-                <TouchableOpacity
-                    style={styles.candidatarButton}
-                    onPress={() => onCandidatar(id)}
-                    activeOpacity={0.8}
-                >
-                    <Text style={styles.candidatarButtonText}>Candidatar</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
+            {expanded && (
+                <View style={{ gap: 10 }}>
+                    <View style={styles.jobCardFooter}>
+                        <View style={{ flex: 1, gap: 10 }}>
+                            <View style={{ gap: 4 }}>
+                                <Text style={styles.jobTitle}>Descrição</Text>
+                                <Text style={styles.jobDescription}>
+                                    {descricao || "Descrição não informada."}
+                                </Text>
+                            </View>
+
+                            <View style={{ gap: 4 }}>
+                                <Text style={styles.jobTitle}>Exigências</Text>
+                                <Text style={styles.jobDescription}>
+                                    {exigencias || "Exigências não informadas."}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 12,
+                        }}
+                    >
+                        <Text style={styles.jobPublishedAt}>{publicadoEm}</Text>
+                        <TouchableOpacity
+                            style={styles.candidatarButton}
+                            onPress={() => onCandidatar(id)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={styles.candidatarButtonText}>Candidatar</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
+            {!expanded && <Text style={styles.jobPublishedAt}>{publicadoEm}</Text>}
+        </TouchableOpacity>
     );
 }
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
+    const { usuario, setUsuario } = useUser();
     const [search, setSearch] = useState("");
+    const [vagas, setVagas] = useState<Vaga[]>([]);
+    const [expandedVagaId, setExpandedVagaId] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
     const notificacoes = 3;
 
-    const vagasFiltradas = VAGAS.filter(
-        (v) =>
-            v.titulo.toLowerCase().includes(search.toLowerCase()) ||
-            v.instituicao.toLowerCase().includes(search.toLowerCase())
+    useEffect(() => {
+        async function carregarVagas() {
+            setLoading(true);
+
+            try {
+                let alunoLogado = usuario;
+                const usuarioAtual = AuthService.usuarioAtual();
+
+                if (!alunoLogado && usuarioAtual?.uid) {
+                    alunoLogado = await AuthService.buscarPerfil(usuarioAtual.uid);
+                    setUsuario(alunoLogado);
+                }
+
+                if (!alunoLogado || alunoLogado.tipo !== "aluno") {
+                    setVagas([]);
+                    return;
+                }
+
+                const aluno = alunoLogado as Aluno;
+                const instituicoesAlunoIds = new Set(
+                    aluno.escolaridades
+                        .map((escolaridade) => escolaridade.idInstituicaoEscolaridade)
+                        .filter(Boolean)
+                );
+                const instituicoesAlunoNomes = new Set(
+                    aluno.escolaridades
+                        .map((escolaridade) => escolaridade.instituicao)
+                        .filter(Boolean)
+                );
+
+                const [vagasSnapshot, tiposSnapshot, instituicoesSnapshot] = await Promise.all([
+                    getDocs(collection(db, "vagas")),
+                    getDocs(collection(db, "tipos_vaga")),
+                    getDocs(collection(db, "instituicoes")),
+                ]);
+
+                const tiposPorId = new Map(
+                    tiposSnapshot.docs.map((doc) => {
+                        const data = doc.data();
+                        return [doc.id, data.nome ?? data.descricao ?? doc.id];
+                    })
+                );
+
+                const instituicoesPorId = new Map(
+                    instituicoesSnapshot.docs.map((doc) => {
+                        const data = doc.data();
+                        return [doc.id, data.nomeEmpresa ?? data.nome ?? doc.id];
+                    })
+                );
+
+                const vagasDoAluno = vagasSnapshot.docs
+                    .filter((doc) => {
+                        const data = doc.data();
+                        const instituicaoFoco =
+                            data.idInstituicaoFoco ?? data.instituicaoFoco ?? data.instituicao_foco;
+
+                        return (
+                            !instituicaoFoco ||
+                            instituicaoFoco === "todos" ||
+                            instituicoesAlunoIds.has(String(instituicaoFoco)) ||
+                            instituicoesAlunoNomes.has(String(instituicaoFoco))
+                        );
+                    })
+                    .map((doc) => {
+                        const data = doc.data();
+                        const tipo = tiposPorId.get(data.idTipoVaga) ?? data.tipo ?? "Estágio";
+                        const instituicao =
+                            instituicoesPorId.get(data.idEmpresa) ??
+                            data.instituicao ??
+                            data.nomeEmpresa ??
+                            "Instituição não informada";
+
+                        return {
+                            id: doc.id,
+                            titulo: data.titulo ?? `Vaga de ${tipo}`,
+                            descricao: data.descricao ?? "Descrição não informada.",
+                            exigencias: data.exigencias ?? "",
+                            instituicao,
+                            localizacao:
+                                data.localizacao ?? data.cidade ?? data.endereco?.cidade ?? "Local não informado",
+                            tipo: data.tipo ?? tipo,
+                            salario: data.salario ?? formatarCargaHoraria(data.cargaHoraria),
+                            publicadoEm: formatarData(data.publicadoEm ?? data.createdAt),
+                        };
+                    });
+
+                setVagas(vagasDoAluno);
+            } catch (_) {
+                Alert.alert("Erro", "Não foi possível carregar as vagas disponíveis.");
+                setVagas([]);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        carregarVagas();
+    }, [setUsuario, usuario]);
+
+    const vagasFiltradas = useMemo(
+        () =>
+            vagas.filter(
+                (v) =>
+                    v.titulo.toLowerCase().includes(search.toLowerCase()) ||
+                    v.instituicao.toLowerCase().includes(search.toLowerCase()) ||
+                    v.descricao.toLowerCase().includes(search.toLowerCase())
+            ),
+        [search, vagas]
     );
 
     const handleCandidatar = (id: string) => {
         console.log("Candidatar vaga:", id);
         // Navegue ou exiba modal de confirmação aqui
+    };
+
+    const handleToggleVaga = (id: string) => {
+        setExpandedVagaId((current) => (current === id ? null : id));
     };
 
     return (
@@ -225,15 +343,36 @@ export default function HomeScreen() {
                     </Text>
                 </View>
 
-                <View style={{ gap: 12 }}>
-                    {vagasFiltradas.map((vaga) => (
-                        <JobCard
-                            key={vaga.id}
-                            {...vaga}
-                            onCandidatar={handleCandidatar}
-                        />
-                    ))}
-                </View>
+                {loading ? (
+                    <View style={styles.emptyCard}>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                        <Text style={[styles.emptySubtitle, { marginTop: 12 }]}>
+                            Carregando vagas disponíveis...
+                        </Text>
+                    </View>
+                ) : vagasFiltradas.length > 0 ? (
+                    <View style={{ gap: 12 }}>
+                        {vagasFiltradas.map((vaga) => (
+                            <JobCard
+                                key={vaga.id}
+                                {...vaga}
+                                expanded={expandedVagaId === vaga.id}
+                                onToggle={handleToggleVaga}
+                                onCandidatar={handleCandidatar}
+                            />
+                        ))}
+                    </View>
+                ) : (
+                    <View style={styles.emptyCard}>
+                        <View style={styles.emptyIconWrapper}>
+                            <Briefcase size={36} color={colors.labelMuted} />
+                        </View>
+                        <Text style={styles.emptyTitle}>Nenhuma vaga encontrada</Text>
+                        <Text style={styles.emptySubtitle}>
+                            As vagas compatíveis com a sua instituição aparecerão aqui.
+                        </Text>
+                    </View>
+                )}
             </ScrollView>
         </SafeAreaView>
     );

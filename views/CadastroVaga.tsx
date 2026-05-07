@@ -13,8 +13,10 @@ import {
 import {
     FileText,
     Clock,
+    DollarSign,
     ChevronDown,
     Briefcase,
+    Building2,
     AlignLeft,
     CheckSquare,
 } from "lucide-react-native";
@@ -30,6 +32,11 @@ import { useUser } from "../context/UserContext";
 interface TipoVaga {
     id: string;
     descricao: string;
+}
+
+interface InstituicaoEscolaridade {
+    id: string;
+    nome: string;
 }
 
 // ── Picker de Tipo de Vaga ────────────────────────────────────────────────────
@@ -91,6 +98,66 @@ function TipoVagaPicker({
     );
 }
 
+// ── Picker de Instituição foco ────────────────────────────────────────────────
+function InstituicaoFocoPicker({
+    value,
+    onChange,
+    instituicoes,
+}: {
+    value: string;
+    onChange: (v: string) => void;
+    instituicoes: InstituicaoEscolaridade[];
+}) {
+    const [open, setOpen] = useState(false);
+    const opcoes = [{ id: "todos", nome: "Todos" }, ...instituicoes];
+    const label = opcoes.find((instituicao) => instituicao.id === value)?.nome ?? "Todos";
+
+    return (
+        <View style={{ gap: 6 }}>
+            <TouchableOpacity
+                style={styles.inputWrapper}
+                onPress={() => setOpen(!open)}
+                activeOpacity={0.8}
+            >
+                <Building2 size={20} color="#9ca3af" />
+                <Text style={[styles.input, { color: value ? "#374151" : "#9ca3af" }]}>
+                    {label}
+                </Text>
+                <ChevronDown size={18} color="#9ca3af" />
+            </TouchableOpacity>
+
+            {open && (
+                <View style={styles.yearDropdown}>
+                    <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                        {opcoes.map((instituicao) => (
+                            <TouchableOpacity
+                                key={instituicao.id}
+                                style={[
+                                    styles.yearOption,
+                                    value === instituicao.id && styles.yearOptionActive,
+                                ]}
+                                onPress={() => {
+                                    onChange(instituicao.id);
+                                    setOpen(false);
+                                }}
+                            >
+                                <Text
+                                    style={[
+                                        styles.yearOptionText,
+                                        value === instituicao.id && styles.yearOptionTextActive,
+                                    ]}
+                                >
+                                    {instituicao.nome}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
+        </View>
+    );
+}
+
 // ── Tela principal ────────────────────────────────────────────────────────────
 export default function CadastrarVaga() {
     const navigation = useNavigation<any>();
@@ -98,13 +165,19 @@ export default function CadastrarVaga() {
 
     const [loading, setLoading] = useState(false);
     const [loadingTipos, setLoadingTipos] = useState(true);
+    const [loadingInstituicoes, setLoadingInstituicoes] = useState(true);
     const [tiposVaga, setTiposVaga] = useState<TipoVaga[]>([]);
+    const [instituicoes, setInstituicoes] = useState<InstituicaoEscolaridade[]>([]);
+    const [temBolsa, setTemBolsa] = useState(false);
+    const [valorBolsa, setValorBolsa] = useState("");
 
     const [formData, setFormData] = useState({
+        titulo: "",
         descricao: "",
         exigencias: "",
         cargaHoraria: "",
         idTipoVaga: "",
+        idInstituicaoFoco: "todos",
     });
 
     // ── Carrega tipos de vaga do Firestore ────────────────────────────────────
@@ -127,13 +200,51 @@ export default function CadastrarVaga() {
         carregarTipos();
     }, []);
 
+    // ── Carrega instituições de escolaridade do Firestore ────────────────────
+    useEffect(() => {
+        async function carregarInstituicoes() {
+            try {
+                const snapshot = await getDocs(collection(db, "instituicao_escolaridade"));
+                const lista: InstituicaoEscolaridade[] = snapshot.docs.map((doc) => {
+                    const data = doc.data();
+
+                    return {
+                        id: doc.id,
+                        nome: data.nome ?? data.instituicao ?? data.descricao ?? doc.id,
+                    };
+                });
+                setInstituicoes(lista);
+            } catch (_) {
+                Alert.alert("Erro", "Não foi possível carregar as instituições.");
+            } finally {
+                setLoadingInstituicoes(false);
+            }
+        }
+
+        carregarInstituicoes();
+    }, []);
+
     const handleInputChange = (name: keyof typeof formData, value: string) => {
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
     const campoVazio = (value: string) => !value.trim();
 
+    const valorBolsaNumerico = () =>
+        Number(valorBolsa.replace(/\./g, "").replace(",", "."));
+
+    const handleTemBolsaChange = (value: boolean) => {
+        setTemBolsa(value);
+        if (!value) {
+            setValorBolsa("");
+        }
+    };
+
     const validar = () => {
+        if (campoVazio(formData.titulo)) {
+            Alert.alert("Atenção", "Informe o título da vaga.");
+            return false;
+        }
         if (campoVazio(formData.descricao)) {
             Alert.alert("Atenção", "Informe a descrição da vaga.");
             return false;
@@ -151,6 +262,13 @@ export default function CadastrarVaga() {
             Alert.alert("Atenção", "Selecione o tipo de vaga.");
             return false;
         }
+        if (temBolsa) {
+            const valor = valorBolsaNumerico();
+            if (!valorBolsa.trim() || Number.isNaN(valor) || valor <= 0) {
+                Alert.alert("Atenção", "Informe um valor de bolsa válido.");
+                return false;
+            }
+        }
         return true;
     };
 
@@ -161,10 +279,14 @@ export default function CadastrarVaga() {
         try {
             const vaga = new Vaga({
                 idEmpresa: usuario?.id ?? "",
+                titulo: formData.titulo.trim(),
                 descricao: formData.descricao.trim(),
                 exigencias: formData.exigencias.trim(),
                 cargaHoraria: Number(formData.cargaHoraria),
+                temBolsa,
+                valorBolsa: temBolsa ? valorBolsaNumerico() : 0,
                 idTipoVaga: formData.idTipoVaga,
+                idInstituicaoFoco: formData.idInstituicaoFoco,
             });
 
             const docRef = await addDoc(collection(db, "vagas"), vaga.toFirestore());
@@ -198,7 +320,7 @@ export default function CadastrarVaga() {
                             Preencha os dados da vaga de estágio
                         </Text>
 
-                        {loadingTipos ? (
+                        {loadingTipos || loadingInstituicoes ? (
                             <ActivityIndicator
                                 size="large"
                                 color="#1e3a4f"
@@ -206,6 +328,20 @@ export default function CadastrarVaga() {
                             />
                         ) : (
                             <View style={styles.form}>
+                                {/* Título */}
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Título da Vaga</Text>
+                                    <View style={styles.inputWrapper}>
+                                        <FileText size={20} color="#9ca3af" />
+                                        <TextInput
+                                            placeholder="Ex: Estágio em Desenvolvimento Front-end"
+                                            value={formData.titulo}
+                                            onChangeText={(v) => handleInputChange("titulo", v)}
+                                            style={styles.input}
+                                            placeholderTextColor="#9ca3af"
+                                        />
+                                    </View>
+                                </View>
 
                                 {/* Tipo de Vaga */}
                                 <View style={styles.inputGroup}>
@@ -214,6 +350,16 @@ export default function CadastrarVaga() {
                                         value={formData.idTipoVaga}
                                         onChange={(v) => handleInputChange("idTipoVaga", v)}
                                         tipos={tiposVaga}
+                                    />
+                                </View>
+
+                                {/* Instituição foco */}
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Instituição foco</Text>
+                                    <InstituicaoFocoPicker
+                                        value={formData.idInstituicaoFoco}
+                                        onChange={(v) => handleInputChange("idInstituicaoFoco", v)}
+                                        instituicoes={instituicoes}
                                     />
                                 </View>
 
@@ -231,6 +377,73 @@ export default function CadastrarVaga() {
                                             style={styles.input}
                                             placeholderTextColor="#9ca3af"
                                             keyboardType="numeric"
+                                        />
+                                    </View>
+                                </View>
+
+                                {/* Bolsa */}
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Tem bolsa?</Text>
+                                    <View style={styles.inputRow}>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.buttonSecondary,
+                                                temBolsa && styles.buttonPrimary,
+                                            ]}
+                                            onPress={() => handleTemBolsaChange(true)}
+                                            activeOpacity={0.8}
+                                        >
+                                            <Text
+                                                style={
+                                                    temBolsa
+                                                        ? styles.buttonText
+                                                        : styles.buttonTextSecondary
+                                                }
+                                            >
+                                                Sim
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.buttonSecondary,
+                                                !temBolsa && styles.buttonPrimary,
+                                            ]}
+                                            onPress={() => handleTemBolsaChange(false)}
+                                            activeOpacity={0.8}
+                                        >
+                                            <Text
+                                                style={
+                                                    !temBolsa
+                                                        ? styles.buttonText
+                                                        : styles.buttonTextSecondary
+                                                }
+                                            >
+                                                Não
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Valor da bolsa</Text>
+                                    <View
+                                        style={[
+                                            styles.inputWrapper,
+                                            !temBolsa && { backgroundColor: "#f3f4f6", opacity: 0.7 },
+                                        ]}
+                                    >
+                                        <DollarSign size={20} color="#9ca3af" />
+                                        <TextInput
+                                            placeholder="Ex: 800,00"
+                                            value={valorBolsa}
+                                            onChangeText={setValorBolsa}
+                                            style={[
+                                                styles.input,
+                                                !temBolsa && { backgroundColor: "#f3f4f6" },
+                                            ]}
+                                            placeholderTextColor="#9ca3af"
+                                            keyboardType="decimal-pad"
+                                            editable={temBolsa}
                                         />
                                     </View>
                                 </View>

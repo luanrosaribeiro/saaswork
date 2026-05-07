@@ -50,8 +50,8 @@ export default function Login() {
         "auth/too-many-requests": "Muitas tentativas. Tente novamente mais tarde.",
       };
       const msg = mensagens[error?.code] ?? error?.message ?? "Erro ao entrar. Tente novamente.";
-      setLoading(false); // ← para o loading ANTES do Alert
-      Alert.alert("Erro", msg); // ← depois
+      setLoading(false);
+      Alert.alert("Erro", msg);
       return;   
     } finally {
       setLoading(false);

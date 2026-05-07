@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     View,
     Text,
@@ -38,21 +38,23 @@ import { Aluno } from '../models/Aluno';
 import { Instituicao } from '../models/Instituicao';
 import { Endereco } from '../models/Endereco';
 import { Escolaridade } from '../models/Escolaridade';
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../config/firebase";
 
 type UserType = "aluno" | "instituicao" | null;
 
+interface InstituicaoEscolaridade {
+    id: string;
+    nome: string;
+}
+
+interface NivelEscolaridade {
+    id: string;
+    nome: string;
+}
+
 const anoAtual = new Date().getFullYear();
 const anos = Array.from({ length: anoAtual - 1969 }, (_, i) => String(anoAtual - i));
-
-const NIVEIS_ESCOLARIDADE = [
-    { value: "fundamental", label: "Ensino Fundamental" },
-    { value: "medio", label: "Ensino Médio" },
-    { value: "tecnico", label: "Ensino Técnico" },
-    { value: "superior", label: "Ensino Superior" },
-    { value: "posgraduacao", label: "Pós-Graduação" },
-    { value: "mestrado", label: "Mestrado" },
-    { value: "doutorado", label: "Doutorado" },
-];
 
 const ESTADOS_BR = [
     "AC","AL","AP","AM","BA","CE","DF","ES","GO",
@@ -60,8 +62,8 @@ const ESTADOS_BR = [
     "RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ];
 
-function getNivelLabel(value: string): string {
-    return NIVEIS_ESCOLARIDADE.find((n) => n.value === value)?.label ?? value;
+function getNivelLabel(value: string, niveis: NivelEscolaridade[]): string {
+    return niveis.find((nivel) => nivel.id === value)?.nome ?? value;
 }
 
 function UserTypeSelection({ onSelectType }: { onSelectType: (t: UserType) => void }) {
@@ -164,49 +166,127 @@ function YearPicker({
 function NivelPicker({
     value,
     onChange,
+    niveis,
+    loading,
 }: {
     value: string;
     onChange: (v: string) => void;
+    niveis: NivelEscolaridade[];
+    loading: boolean;
 }) {
     const [open, setOpen] = useState(false);
-    const label = value ? getNivelLabel(value) : "Selecione";
+    const label = value ? getNivelLabel(value, niveis) : "Selecione";
 
     return (
         <View style={{ gap: 6 }}>
             <TouchableOpacity
                 style={styles.inputWrapper}
-                onPress={() => setOpen(!open)}
+                onPress={() => {
+                    if (!loading) setOpen(!open);
+                }}
                 activeOpacity={0.8}
+                disabled={loading}
             >
                 <GraduationCap size={20} color="#9ca3af" />
                 <Text style={[styles.input, { color: value ? "#374151" : "#9ca3af" }]}>
-                    {label}
+                    {loading ? "Carregando níveis..." : label}
                 </Text>
-                <ChevronDown size={18} color="#9ca3af" />
+                {loading ? (
+                    <ActivityIndicator size="small" color="#9ca3af" />
+                ) : (
+                    <ChevronDown size={18} color="#9ca3af" />
+                )}
             </TouchableOpacity>
 
             {open && (
                 <View style={styles.yearDropdown}>
                     <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-                        {NIVEIS_ESCOLARIDADE.map((nivel) => (
+                        {niveis.map((nivel) => (
                             <TouchableOpacity
-                                key={nivel.value}
+                                key={nivel.id}
                                 style={[
                                     styles.yearOption,
-                                    value === nivel.value && styles.yearOptionActive,
+                                    value === nivel.id && styles.yearOptionActive,
                                 ]}
                                 onPress={() => {
-                                    onChange(nivel.value);
+                                    onChange(nivel.id);
                                     setOpen(false);
                                 }}
                             >
                                 <Text
                                     style={[
                                         styles.yearOptionText,
-                                        value === nivel.value && styles.yearOptionTextActive,
+                                        value === nivel.id && styles.yearOptionTextActive,
                                     ]}
                                 >
-                                    {nivel.label}
+                                    {nivel.nome}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
+        </View>
+    );
+}
+
+function InstituicaoEscolaridadePicker({
+    value,
+    onChange,
+    instituicoes,
+    loading,
+}: {
+    value: string;
+    onChange: (instituicao: InstituicaoEscolaridade) => void;
+    instituicoes: InstituicaoEscolaridade[];
+    loading: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const label = instituicoes.find((instituicao) => instituicao.id === value)?.nome ?? "Selecione";
+
+    return (
+        <View style={{ gap: 6 }}>
+            <TouchableOpacity
+                style={styles.inputWrapper}
+                onPress={() => {
+                    if (!loading) setOpen(!open);
+                }}
+                activeOpacity={0.8}
+                disabled={loading}
+            >
+                <Building size={20} color="#9ca3af" />
+                <Text style={[styles.input, { color: value ? "#374151" : "#9ca3af" }]}>
+                    {loading ? "Carregando instituições..." : label}
+                </Text>
+                {loading ? (
+                    <ActivityIndicator size="small" color="#9ca3af" />
+                ) : (
+                    <ChevronDown size={18} color="#9ca3af" />
+                )}
+            </TouchableOpacity>
+
+            {open && (
+                <View style={styles.yearDropdown}>
+                    <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                        {instituicoes.map((instituicao) => (
+                            <TouchableOpacity
+                                key={instituicao.id}
+                                style={[
+                                    styles.yearOption,
+                                    value === instituicao.id && styles.yearOptionActive,
+                                ]}
+                                onPress={() => {
+                                    onChange(instituicao);
+                                    setOpen(false);
+                                }}
+                            >
+                                <Text
+                                    style={[
+                                        styles.yearOptionText,
+                                        value === instituicao.id && styles.yearOptionTextActive,
+                                    ]}
+                                >
+                                    {instituicao.nome}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -282,6 +362,10 @@ export default function CadastroUser() {
     const [showConfirmaSenha, setShowConfirmaSenha] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [loadingNiveis, setLoadingNiveis] = useState(true);
+    const [loadingInstituicoes, setLoadingInstituicoes] = useState(true);
+    const [niveisEscolaridade, setNiveisEscolaridade] = useState<NivelEscolaridade[]>([]);
+    const [instituicoesEscolaridade, setInstituicoesEscolaridade] = useState<InstituicaoEscolaridade[]>([]);
 
     const [formData, setFormData] = useState({
         nome: "",
@@ -304,6 +388,7 @@ export default function CadastroUser() {
     const [escolaridades, setEscolaridades] = useState<Escolaridade[]>([]);
     const [escolaridadeAtual, setEscolaridadeAtual] = useState({
         nivelEscolaridade: "",
+        idInstituicaoEscolaridade: "",
         instituicao: "",
         curso: "",
         anoInicio: "",
@@ -327,6 +412,58 @@ export default function CadastroUser() {
     ) => {
         setEscolaridadeAtual((prev) => ({ ...prev, [name]: value }));
     };
+
+    useEffect(() => {
+        async function carregarNiveisEscolaridade() {
+            try {
+                const snapshot = await getDocs(collection(db, "niveis_escolaridades"));
+                const lista: NivelEscolaridade[] = snapshot.docs
+                    .map((doc) => {
+                        const data = doc.data();
+
+                        return {
+                            id: doc.id,
+                            nome: data.nome ?? data.descricao ?? data.label ?? doc.id,
+                        };
+                    })
+                    .sort((a, b) => a.nome.localeCompare(b.nome));
+
+                setNiveisEscolaridade(lista);
+            } catch (_) {
+                Alert.alert("Erro", "Não foi possível carregar os níveis de escolaridade.");
+            } finally {
+                setLoadingNiveis(false);
+            }
+        }
+
+        carregarNiveisEscolaridade();
+    }, []);
+
+    useEffect(() => {
+        async function carregarInstituicoesEscolaridade() {
+            try {
+                const snapshot = await getDocs(collection(db, "instituicao_escolaridade"));
+                const lista: InstituicaoEscolaridade[] = snapshot.docs
+                    .map((doc) => {
+                        const data = doc.data();
+
+                        return {
+                            id: doc.id,
+                            nome: data.nome ?? data.instituicao ?? data.descricao ?? doc.id,
+                        };
+                    })
+                    .sort((a, b) => a.nome.localeCompare(b.nome));
+
+                setInstituicoesEscolaridade(lista);
+            } catch (_) {
+                Alert.alert("Erro", "Não foi possível carregar as instituições.");
+            } finally {
+                setLoadingInstituicoes(false);
+            }
+        }
+
+        carregarInstituicoesEscolaridade();
+    }, []);
 
     const apenasNumeros = (value: string) => value.replace(/\D/g, "");
 
@@ -479,7 +616,7 @@ export default function CadastroUser() {
     const adicionarEscolaridade = () => {
         if (
             !escolaridadeAtual.nivelEscolaridade ||
-            campoVazio(escolaridadeAtual.instituicao) ||
+            !escolaridadeAtual.idInstituicaoEscolaridade ||
             campoVazio(escolaridadeAtual.curso) ||
             !escolaridadeAtual.anoInicio
         ) {
@@ -501,6 +638,7 @@ export default function CadastroUser() {
         ]);
         setEscolaridadeAtual({
             nivelEscolaridade: "",
+            idInstituicaoEscolaridade: "",
             instituicao: "",
             curso: "",
             anoInicio: "",
@@ -1019,7 +1157,7 @@ export default function CadastroUser() {
                                                                         { color: "#1e3a4f", fontWeight: "600" },
                                                                     ]}
                                                                 >
-                                                                    {getNivelLabel(e.nivelEscolaridade)}
+                                                                    {getNivelLabel(e.nivelEscolaridade, niveisEscolaridade)}
                                                                 </Text>
                                                                 <Text style={styles.escolaridadeText}>
                                                                     {e.curso} — {e.instituicao}
@@ -1060,23 +1198,22 @@ export default function CadastroUser() {
                                                     onChange={(v) =>
                                                         handleEscolaridadeChange("nivelEscolaridade", v)
                                                     }
+                                                    niveis={niveisEscolaridade}
+                                                    loading={loadingNiveis}
                                                 />
                                             </View>
 
                                             <View style={styles.inputGroup}>
                                                 <Text style={styles.label}>Instituição</Text>
-                                                <View style={styles.inputWrapper}>
-                                                    <Building size={20} color="#9ca3af" />
-                                                    <TextInput
-                                                        placeholder="Nome da instituição"
-                                                        value={escolaridadeAtual.instituicao}
-                                                        onChangeText={(v) =>
-                                                            handleEscolaridadeChange("instituicao", v)
-                                                        }
-                                                        style={styles.input}
-                                                        placeholderTextColor="#9ca3af"
-                                                    />
-                                                </View>
+                                                <InstituicaoEscolaridadePicker
+                                                    value={escolaridadeAtual.idInstituicaoEscolaridade}
+                                                    onChange={(instituicao) => {
+                                                        handleEscolaridadeChange("idInstituicaoEscolaridade", instituicao.id);
+                                                        handleEscolaridadeChange("instituicao", instituicao.nome);
+                                                    }}
+                                                    instituicoes={instituicoesEscolaridade}
+                                                    loading={loadingInstituicoes}
+                                                />
                                             </View>
 
                                             <View style={styles.inputGroup}>
