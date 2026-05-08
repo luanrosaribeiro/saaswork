@@ -198,21 +198,19 @@ export default StyleSheet.create({
   },
 
   stepItem: {
-    alignItems: "center",
-    flex: 1,
-    position: "relative",
+      flex: 1,
+      alignItems: "center",
+      position: "relative",
   },
 
   connector: {
-    flex: 1,
     position: "absolute",
     top: 18,
-    left: 0,
-    right: 0,
+    left: "-50%",
+    width: "100%",
     height: 2,
     backgroundColor: colors.border,
     zIndex: 0,
-    transform: [{ translateX: -30 }],
   },
 
   connectorDone: {
@@ -248,6 +246,7 @@ export default StyleSheet.create({
     color: colors.placeholder,
     marginTop: 6,
     textAlign: "center",
+    width: 80,
   },
 
   stepLabelActive: {

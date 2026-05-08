@@ -32,7 +32,6 @@ import {
     X,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import styles from "../assets/style/estilo";
 import { useNavigation } from "@react-navigation/native";
 import { AuthService } from '../services/AuthService';
 import { Estudante } from '../models/Estudante';
@@ -41,6 +40,8 @@ import { Endereco } from '../models/Endereco';
 import { Escolaridade } from '../models/Escolaridade';
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../config/firebase";
+import styles from "../assets/style/estilo";
+import EstadoPicker from "../components/EstadoPicker";
 
 type UserType = "estudante" | "empresa" | null;
 
@@ -56,12 +57,6 @@ interface NivelEscolaridade {
 
 const anoAtual = new Date().getFullYear();
 const anos = Array.from({ length: anoAtual - 1969 }, (_, i) => String(anoAtual - i));
-
-const ESTADOS_BR = [
-    "AC","AL","AP","AM","BA","CE","DF","ES","GO",
-    "MA","MT","MS","MG","PA","PB","PR","PE","PI",
-    "RJ","RN","RS","RO","RR","SC","SP","SE","TO",
-];
 
 function getNivelLabel(value: string, niveis: NivelEscolaridade[]): string {
     return niveis.find((nivel) => nivel.id === value)?.nome ?? value;
@@ -288,62 +283,6 @@ function InstituicaoEscolaridadePicker({
                                     ]}
                                 >
                                     {instituicao.nome}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
-            )}
-        </View>
-    );
-}
-
-function EstadoPicker({
-    value,
-    onChange,
-}: {
-    value: string;
-    onChange: (v: string) => void;
-}) {
-    const [open, setOpen] = useState(false);
-
-    return (
-        <View style={{ flex: 1, gap: 6 }}>
-            <Text style={styles.label}>Estado</Text>
-            <TouchableOpacity
-                style={[styles.inputWrapper, { flex: 1 }]}
-                onPress={() => setOpen(!open)}
-                activeOpacity={0.8}
-            >
-                <MapPin size={20} color="#9ca3af" />
-                <Text style={[styles.input, { color: value ? "#374151" : "#9ca3af" }]}>
-                    {value || "UF"}
-                </Text>
-                <ChevronDown size={18} color="#9ca3af" />
-            </TouchableOpacity>
-
-            {open && (
-                <View style={styles.yearDropdown}>
-                    <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
-                        {ESTADOS_BR.map((uf) => (
-                            <TouchableOpacity
-                                key={uf}
-                                style={[
-                                    styles.yearOption,
-                                    value === uf && styles.yearOptionActive,
-                                ]}
-                                onPress={() => {
-                                    onChange(uf);
-                                    setOpen(false);
-                                }}
-                            >
-                                <Text
-                                    style={[
-                                        styles.yearOptionText,
-                                        value === uf && styles.yearOptionTextActive,
-                                    ]}
-                                >
-                                    {uf}
                                 </Text>
                             </TouchableOpacity>
                         ))}

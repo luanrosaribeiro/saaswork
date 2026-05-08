@@ -65,23 +65,17 @@ export default function PerfilScreen() {
         : "";
 
     const voltarParaLogin = () => {
-        const resetAction = CommonActions.reset({
-            index: 0,
-            routes: [{ name: "Login" }],
-        });
+        const resetAction = CommonActions.reset({ index: 0, routes: [{ name: "Login" }] });
         const parentNavigation = navigation.getParent?.();
-
         if (parentNavigation) {
             parentNavigation.dispatch(resetAction);
             return;
         }
-
         navigation.dispatch(resetAction);
     };
 
     const handleLogout = async () => {
         setLoadingLogout(true);
-
         try {
             await AuthService.logout();
             setUsuario(null);
@@ -122,7 +116,9 @@ export default function PerfilScreen() {
                     <Text style={styles.screenHeaderSubtitle}>Dados da sua conta</Text>
                 </View>
 
+                {/* Card único com todos os dados */}
                 <View style={[styles.candidaturaCard, { gap: 16, marginBottom: 12 }]}>
+
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                         <View style={styles.userTypeIconWrapper}>
                             {isEstudante ? (
@@ -143,56 +139,66 @@ export default function PerfilScreen() {
                         <InfoRow label="Endereço" value={enderecoCompleto} Icon={MapPin} />
                         <InfoRow label="CEP" value={endereco?.cep} Icon={MapPin} />
                     </View>
+
+                    <View style={{ height: 1, backgroundColor: colors.border ?? "#e5e7eb" }} />
+
+                    {isEstudante && estudante && (
+                        <View style={{ gap: 12 }}>
+                            <Text style={styles.candidaturaTitle}>Dados do estudante</Text>
+                            <InfoRow label="CPF" value={estudante.cpf} Icon={User} />
+                            <InfoRow label="Data de nascimento" value={estudante.dt_nascimento} Icon={Calendar} />
+
+                            {estudante.escolaridades.length > 0 && (
+                                <View style={{ gap: 8 }}>
+                                    <Text style={styles.sectionLabel}>Escolaridades</Text>
+                                    {estudante.escolaridades.map((escolaridade) => (
+                                        <View key={escolaridade.id} style={styles.escolaridadeCard}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text
+                                                    style={[
+                                                        styles.escolaridadeText,
+                                                        { color: colors.primary, fontWeight: "600" },
+                                                    ]}
+                                                >
+                                                    {escolaridade.curso || escolaridade.nivelEscolaridade}
+                                                </Text>
+                                                <Text style={styles.escolaridadeText}>
+                                                    {escolaridade.instituicao || "Instituição não informada"}
+                                                </Text>
+                                                <Text
+                                                    style={[
+                                                        styles.escolaridadeText,
+                                                        { fontSize: 12, color: colors.labelMuted },
+                                                    ]}
+                                                >
+                                                    {escolaridade.anoInicio || "Início não informado"} -{" "}
+                                                    {escolaridade.anoConclusao || "Cursando"}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+                    {!isEstudante && empresa && (
+                        <View style={{ gap: 12 }}>
+                            <Text style={styles.candidaturaTitle}>Dados da empresa</Text>
+                            <InfoRow label="Nome da empresa" value={empresa.nomeEmpresa} Icon={Building2} />
+                            <InfoRow label="CNPJ" value={empresa.cnpj} Icon={Building2} />
+                            <InfoRow label="Responsável" value={empresa.responsavel || empresa.nome} Icon={User} />
+                        </View>
+                    )}
                 </View>
 
-                {isEstudante && estudante && (
-                    <View style={[styles.candidaturaCard, { gap: 12, marginBottom: 12 }]}>
-                        <Text style={styles.candidaturaTitle}>Dados do estudante</Text>
-                        <InfoRow label="CPF" value={estudante.cpf} Icon={User} />
-                        <InfoRow label="Data de nascimento" value={estudante.dt_nascimento} Icon={Calendar} />
-
-                        {estudante.escolaridades.length > 0 && (
-                            <View style={{ gap: 8 }}>
-                                <Text style={styles.sectionLabel}>Escolaridades</Text>
-                                {estudante.escolaridades.map((escolaridade) => (
-                                    <View key={escolaridade.id} style={styles.escolaridadeCard}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text
-                                                style={[
-                                                    styles.escolaridadeText,
-                                                    { color: colors.primary, fontWeight: "600" },
-                                                ]}
-                                            >
-                                                {escolaridade.curso || escolaridade.nivelEscolaridade}
-                                            </Text>
-                                            <Text style={styles.escolaridadeText}>
-                                                {escolaridade.instituicao || "Instituição não informada"}
-                                            </Text>
-                                            <Text
-                                                style={[
-                                                    styles.escolaridadeText,
-                                                    { fontSize: 12, color: colors.labelMuted },
-                                                ]}
-                                            >
-                                                {escolaridade.anoInicio || "Início não informado"} -{" "}
-                                                {escolaridade.anoConclusao || "Cursando"}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                ))}
-                            </View>
-                        )}
-                    </View>
-                )}
-
-                {!isEstudante && empresa && (
-                    <View style={[styles.candidaturaCard, { gap: 12, marginBottom: 12 }]}>
-                        <Text style={styles.candidaturaTitle}>Dados da empresa</Text>
-                        <InfoRow label="Nome da empresa" value={empresa.nomeEmpresa} Icon={Building2} />
-                        <InfoRow label="CNPJ" value={empresa.cnpj} Icon={Building2} />
-                        <InfoRow label="Responsável" value={empresa.responsavel || empresa.nome} Icon={User} />
-                    </View>
-                )}
+                <TouchableOpacity
+                    style={[styles.buttonPrimary, { flex: 0, marginTop: 8 }]}
+                    onPress={() => navigation.navigate("EditarPerfil")}
+                    activeOpacity={0.8}
+                >
+                    <Text style={styles.buttonText}>Editar perfil</Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                     style={[

@@ -7,6 +7,7 @@ import Login from "./views/Login";
 import CadastroUser from "./views/CadastroUser";
 import HomeCandidato from "./views/HomeCandidato";
 import HomeEmpresa from "./views/HomeEmpresa";
+import EditarPerfil from "./views/EditarPerfil";
 
 
 const Stack = createNativeStackNavigator();
@@ -33,6 +34,11 @@ export default function App() {
               name="Main"
               component={BottomNav}
               options={{ gestureEnabled: false }}
+            />
+            <Stack.Screen 
+              name="EditarPerfil" 
+              component={EditarPerfil}
+              options={{ gestureEnabled: false }} 
             />
           </Stack.Navigator>
         </NavigationContainer>
