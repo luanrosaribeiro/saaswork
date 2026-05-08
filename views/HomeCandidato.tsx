@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -19,16 +19,19 @@ import {
     Building2,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { collection, getDocs } from "firebase/firestore";
+import { useFocusEffect } from "@react-navigation/native";
+import { addDoc, collection, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import styles, { colors } from "../assets/style/estilo";
 import { db } from "../config/firebase";
 import { useUser } from "../context/UserContext";
 import { AuthService } from "../services/AuthService";
-import { Aluno } from "../models/Aluno";
+import { Estudante } from "../models/Estudante";
+import { Candidatura } from "../models/Candidatura";
+import { Vaga as VagaModel } from "../models/Vaga";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Vaga {
+interface VagaDisponivel {
     id: string;
     titulo: string;
     descricao: string;
@@ -38,6 +41,7 @@ interface Vaga {
     tipo: string;
     salario?: string;
     publicadoEm: string;
+    vaga: VagaModel;
 }
 
 function formatarData(data: unknown): string {
@@ -66,10 +70,11 @@ function formatarCargaHoraria(cargaHoraria: unknown): string {
 
 // ─── JobCard ──────────────────────────────────────────────────────────────────
 
-interface JobCardProps extends Vaga {
+interface JobCardProps extends VagaDisponivel {
     expanded: boolean;
     onToggle: (id: string) => void;
     onCandidatar: (id: string) => void;
+    candidatarLoading: boolean;
 }
 
 function JobCard({
@@ -85,6 +90,7 @@ function JobCard({
     expanded,
     onToggle,
     onCandidatar,
+    candidatarLoading,
 }: JobCardProps) {
     return (
         <TouchableOpacity
@@ -151,11 +157,16 @@ function JobCard({
                     >
                         <Text style={styles.jobPublishedAt}>{publicadoEm}</Text>
                         <TouchableOpacity
-                            style={styles.candidatarButton}
+                            style={[styles.candidatarButton, candidatarLoading && styles.buttonDisabled]}
                             onPress={() => onCandidatar(id)}
+                            disabled={candidatarLoading}
                             activeOpacity={0.8}
                         >
-                            <Text style={styles.candidatarButtonText}>Candidatar</Text>
+                            {candidatarLoading ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Text style={styles.candidatarButtonText}>Candidatar</Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -171,46 +182,58 @@ function JobCard({
 export default function HomeScreen() {
     const { usuario, setUsuario } = useUser();
     const [search, setSearch] = useState("");
-    const [vagas, setVagas] = useState<Vaga[]>([]);
+    const [vagas, setVagas] = useState<VagaDisponivel[]>([]);
     const [expandedVagaId, setExpandedVagaId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [candidaturaLoadingId, setCandidaturaLoadingId] = useState<string | null>(null);
     const notificacoes = 3;
 
-    useEffect(() => {
+    useFocusEffect(
+        useCallback(() => {
         async function carregarVagas() {
             setLoading(true);
 
             try {
-                let alunoLogado = usuario;
+                let estudanteLogado = usuario;
                 const usuarioAtual = AuthService.usuarioAtual();
 
-                if (!alunoLogado && usuarioAtual?.uid) {
-                    alunoLogado = await AuthService.buscarPerfil(usuarioAtual.uid);
-                    setUsuario(alunoLogado);
+                if (!estudanteLogado && usuarioAtual?.uid) {
+                    estudanteLogado = await AuthService.buscarPerfil(usuarioAtual.uid);
+                    setUsuario(estudanteLogado);
                 }
 
-                if (!alunoLogado || alunoLogado.tipo !== "aluno") {
+                if (!estudanteLogado || estudanteLogado.tipo !== "estudante") {
                     setVagas([]);
                     return;
                 }
 
-                const aluno = alunoLogado as Aluno;
-                const instituicoesAlunoIds = new Set(
-                    aluno.escolaridades
+                const estudante = estudanteLogado as Estudante;
+                const instituicoesEstudanteIds = new Set(
+                    estudante.escolaridades
                         .map((escolaridade) => escolaridade.idInstituicaoEscolaridade)
                         .filter(Boolean)
                 );
-                const instituicoesAlunoNomes = new Set(
-                    aluno.escolaridades
+                const instituicoesEstudanteNomes = new Set(
+                    estudante.escolaridades
                         .map((escolaridade) => escolaridade.instituicao)
                         .filter(Boolean)
                 );
 
-                const [vagasSnapshot, tiposSnapshot, instituicoesSnapshot] = await Promise.all([
+                const [vagasSnapshot, tiposSnapshot, instituicoesSnapshot, candidaturasSnapshot] = await Promise.all([
                     getDocs(collection(db, "vagas")),
                     getDocs(collection(db, "tipos_vaga")),
-                    getDocs(collection(db, "instituicoes")),
+                    getDocs(collection(db, "empresas")),
+                    getDocs(query(collection(db, "candidaturas"), where("idCandidato", "==", estudante.id))),
                 ]);
+
+                const vagasCandidatadasIds = new Set(
+                    candidaturasSnapshot.docs
+                        .map((doc) => {
+                            const data = doc.data();
+                            return data.idVaga ?? data.vaga?.id;
+                        })
+                        .filter(Boolean)
+                );
 
                 const tiposPorId = new Map(
                     tiposSnapshot.docs.map((doc) => {
@@ -226,17 +249,20 @@ export default function HomeScreen() {
                     })
                 );
 
-                const vagasDoAluno = vagasSnapshot.docs
+                const vagasDoEstudante = vagasSnapshot.docs
                     .filter((doc) => {
                         const data = doc.data();
                         const instituicaoFoco =
                             data.idInstituicaoFoco ?? data.instituicaoFoco ?? data.instituicao_foco;
 
                         return (
-                            !instituicaoFoco ||
-                            instituicaoFoco === "todos" ||
-                            instituicoesAlunoIds.has(String(instituicaoFoco)) ||
-                            instituicoesAlunoNomes.has(String(instituicaoFoco))
+                            !vagasCandidatadasIds.has(doc.id) &&
+                            (
+                                !instituicaoFoco ||
+                                instituicaoFoco === "todos" ||
+                                instituicoesEstudanteIds.has(String(instituicaoFoco)) ||
+                                instituicoesEstudanteNomes.has(String(instituicaoFoco))
+                            )
                         );
                     })
                     .map((doc) => {
@@ -248,21 +274,35 @@ export default function HomeScreen() {
                             data.nomeEmpresa ??
                             "Instituição não informada";
 
-                        return {
+                        const vaga = new VagaModel({
                             id: doc.id,
+                            idEmpresa: data.idEmpresa ?? "",
                             titulo: data.titulo ?? `Vaga de ${tipo}`,
                             descricao: data.descricao ?? "Descrição não informada.",
                             exigencias: data.exigencias ?? "",
+                            cargaHoraria: Number(data.cargaHoraria) || 0,
+                            temBolsa: Boolean(data.temBolsa),
+                            valorBolsa: Number(data.valorBolsa) || 0,
+                            idTipoVaga: data.idTipoVaga ?? "",
+                            idInstituicaoFoco: data.idInstituicaoFoco ?? "todos",
+                        });
+
+                        return {
+                            id: doc.id,
+                            titulo: vaga.titulo,
+                            descricao: vaga.descricao,
+                            exigencias: vaga.exigencias,
                             instituicao,
                             localizacao:
                                 data.localizacao ?? data.cidade ?? data.endereco?.cidade ?? "Local não informado",
                             tipo: data.tipo ?? tipo,
                             salario: data.salario ?? formatarCargaHoraria(data.cargaHoraria),
                             publicadoEm: formatarData(data.publicadoEm ?? data.createdAt),
+                            vaga,
                         };
                     });
 
-                setVagas(vagasDoAluno);
+                setVagas(vagasDoEstudante);
             } catch (_) {
                 Alert.alert("Erro", "Não foi possível carregar as vagas disponíveis.");
                 setVagas([]);
@@ -272,7 +312,8 @@ export default function HomeScreen() {
         }
 
         carregarVagas();
-    }, [setUsuario, usuario]);
+        }, [setUsuario, usuario])
+    );
 
     const vagasFiltradas = useMemo(
         () =>
@@ -285,9 +326,61 @@ export default function HomeScreen() {
         [search, vagas]
     );
 
-    const handleCandidatar = (id: string) => {
-        console.log("Candidatar vaga:", id);
-        // Navegue ou exiba modal de confirmação aqui
+    const handleCandidatar = async (id: string) => {
+        const vagaSelecionada = vagas.find((vaga) => vaga.id === id);
+
+        if (!vagaSelecionada) {
+            Alert.alert("Erro", "Vaga não encontrada.");
+            return;
+        }
+
+        setCandidaturaLoadingId(id);
+
+        try {
+            let estudanteLogado = usuario;
+            const usuarioAtual = AuthService.usuarioAtual();
+
+            if (!estudanteLogado && usuarioAtual?.uid) {
+                estudanteLogado = await AuthService.buscarPerfil(usuarioAtual.uid);
+                setUsuario(estudanteLogado);
+            }
+
+            if (!estudanteLogado || estudanteLogado.tipo !== "estudante") {
+                Alert.alert("Atenção", "Faça login como estudante para se candidatar.");
+                return;
+            }
+
+            const estudante = estudanteLogado as Estudante;
+            const candidaturasSnapshot = await getDocs(
+                query(collection(db, "candidaturas"), where("idCandidato", "==", estudante.id))
+            );
+            const candidaturaExistente = candidaturasSnapshot.docs.some(
+                (doc) => {
+                    const data = doc.data();
+                    return (data.idVaga ?? data.vaga?.id) === vagaSelecionada.vaga.id;
+                }
+            );
+
+            if (candidaturaExistente) {
+                Alert.alert("Atenção", "Você já se candidatou para esta vaga.");
+                return;
+            }
+
+            const candidatura = new Candidatura({
+                candidato: estudante,
+                vaga: vagaSelecionada.vaga,
+            });
+            const docRef = await addDoc(collection(db, "candidaturas"), candidatura.toFirestore());
+
+            await updateDoc(doc(db, "candidaturas", docRef.id), { id: docRef.id });
+            setVagas((vagasAtuais) => vagasAtuais.filter((vaga) => vaga.id !== id));
+            setExpandedVagaId((current) => (current === id ? null : current));
+            Alert.alert("Sucesso!", "Candidatura realizada com sucesso.");
+        } catch (_) {
+            Alert.alert("Erro", "Não foi possível realizar a candidatura. Tente novamente.");
+        } finally {
+            setCandidaturaLoadingId(null);
+        }
     };
 
     const handleToggleVaga = (id: string) => {
@@ -359,6 +452,7 @@ export default function HomeScreen() {
                                 expanded={expandedVagaId === vaga.id}
                                 onToggle={handleToggleVaga}
                                 onCandidatar={handleCandidatar}
+                                candidatarLoading={candidaturaLoadingId === vaga.id}
                             />
                         ))}
                     </View>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     ScrollView,
@@ -19,10 +19,11 @@ import {
     Users,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import styles, { colors } from "../assets/style/estilo";
-import { AuthService } from "../services/AuthService";
 import { db } from "../config/firebase";
+import { useUser } from "../context/UserContext";
 
 interface VagaEmpresa {
     id: string;
@@ -34,6 +35,10 @@ interface VagaEmpresa {
     publicadoEm: string;
     status: "ativa" | "pausada" | "encerrada";
     candidatos: number;
+}
+
+interface EmpresaJobCardProps extends VagaEmpresa {
+    onGerenciar: (vagaId: string) => void;
 }
 
 function formatarData(data: unknown): string {
@@ -81,6 +86,7 @@ function normalizarStatus(status: unknown): VagaEmpresa["status"] {
 }
 
 function EmpresaJobCard({
+    id,
     titulo,
     descricao,
     localizacao,
@@ -89,7 +95,8 @@ function EmpresaJobCard({
     publicadoEm,
     status,
     candidatos,
-}: VagaEmpresa) {
+    onGerenciar,
+}: EmpresaJobCardProps) {
     const statusStyle = getStatusStyle(status);
 
     return (
@@ -140,7 +147,11 @@ function EmpresaJobCard({
 
             <View style={styles.jobCardFooter}>
                 <Text style={styles.jobPublishedAt}>{publicadoEm}</Text>
-                <TouchableOpacity style={styles.candidatarButton} activeOpacity={0.8}>
+                <TouchableOpacity
+                    style={styles.candidatarButton}
+                    onPress={() => onGerenciar(id)}
+                    activeOpacity={0.8}
+                >
                     <Text style={styles.candidatarButtonText}>Gerenciar</Text>
                 </TouchableOpacity>
             </View>
@@ -148,25 +159,28 @@ function EmpresaJobCard({
     );
 }
 
-export default function HomeInstituicao() {
+export default function HomeEmpresa() {
+    const navigation = useNavigation<any>();
+    const { usuario } = useUser();
     const [search, setSearch] = useState("");
     const [vagas, setVagas] = useState<VagaEmpresa[]>([]);
     const [loading, setLoading] = useState(true);
     const notificacoes = 0;
 
-    useEffect(() => {
+    useFocusEffect(
+        useCallback(() => {
         const carregarVagas = async () => {
-            const usuarioAtual = AuthService.usuarioAtual();
-
-            if (!usuarioAtual?.uid) {
+            if (!usuario?.id || usuario.tipo !== "empresa") {
                 setVagas([]);
                 setLoading(false);
                 return;
             }
 
+            setLoading(true);
+
             try {
                 const vagasRef = collection(db, "vagas");
-                const vagasQuery = query(vagasRef, where("empresaId", "==", usuarioAtual.uid));
+                const vagasQuery = query(vagasRef, where("idEmpresa", "==", usuario.id));
                 const snapshot = await getDocs(vagasQuery);
 
                 const vagasDaEmpresa = snapshot.docs.map((doc) => {
@@ -195,7 +209,8 @@ export default function HomeInstituicao() {
         };
 
         carregarVagas();
-    }, []);
+    }, [usuario])
+    );
 
     const vagasFiltradas = useMemo(
         () =>
@@ -210,6 +225,12 @@ export default function HomeInstituicao() {
 
     const vagasAtivas = vagas.filter((vaga) => vaga.status === "ativa").length;
     const totalCandidatos = vagas.reduce((total, vaga) => total + vaga.candidatos, 0);
+    const handleCadastrarVaga = () => {
+        navigation.navigate("CadastroVaga");
+    };
+    const handleGerenciarVaga = (vagaId: string) => {
+        navigation.navigate("DetalhesVagaEmpresa", { vagaId });
+    };
 
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
@@ -265,10 +286,14 @@ export default function HomeInstituicao() {
                 ) : vagasFiltradas.length > 0 ? (
                     <View style={{ gap: 12 }}>
                         {vagasFiltradas.map((vaga) => (
-                            <EmpresaJobCard key={vaga.id} {...vaga} />
+                            <EmpresaJobCard
+                                key={vaga.id}
+                                {...vaga}
+                                onGerenciar={handleGerenciarVaga}
+                            />
                         ))}
                     </View>
-                ) : (
+                ) : vagas.length === 0 ? (
                     <View style={styles.emptyCard}>
                         <View style={styles.emptyIconWrapper}>
                             <Briefcase size={36} color={colors.labelMuted} />
@@ -279,6 +304,7 @@ export default function HomeInstituicao() {
                         </Text>
                         <TouchableOpacity
                             style={[styles.candidatarButton, { marginTop: 18 }]}
+                            onPress={handleCadastrarVaga}
                             activeOpacity={0.8}
                         >
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -286,6 +312,16 @@ export default function HomeInstituicao() {
                                 <Text style={styles.candidatarButtonText}>Cadastrar vaga</Text>
                             </View>
                         </TouchableOpacity>
+                    </View>
+                ) : (
+                    <View style={styles.emptyCard}>
+                        <View style={styles.emptyIconWrapper}>
+                            <Search size={36} color={colors.labelMuted} />
+                        </View>
+                        <Text style={styles.emptyTitle}>Nenhuma vaga encontrada</Text>
+                        <Text style={styles.emptySubtitle}>
+                            Tente buscar por outro título, local ou status.
+                        </Text>
                     </View>
                 )}
             </ScrollView>

@@ -1,13 +1,13 @@
 import { Usuario } from './Usuario';
 
-export class Instituicao extends Usuario {
+export class Empresa extends Usuario {
   public nomeEmpresa: string;
   public cnpj: string;
   public responsavel: string;
 
-  constructor(objeto?: Partial<Instituicao>) {
+  constructor(objeto?: Partial<Empresa>) {
     super(objeto);
-    this.tipo = 'instituicao';
+    this.tipo = 'empresa';
     this.nomeEmpresa = objeto?.nomeEmpresa ?? '';
     this.cnpj = objeto?.cnpj ?? '';
     this.responsavel = objeto?.responsavel ?? '';

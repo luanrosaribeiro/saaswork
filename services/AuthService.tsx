@@ -10,8 +10,8 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
-import { Aluno } from '../models/Aluno';
-import { Instituicao } from '../models/Instituicao';
+import { Estudante } from '../models/Estudante';
+import { Empresa } from '../models/Empresa';
 import { TipoUsuario } from '../models/Usuario';
 
 export class AuthService {
@@ -19,14 +19,14 @@ export class AuthService {
   static async cadastrar(
     email: string,
     senha: string,
-    dados: Aluno | Instituicao
+    dados: Estudante | Empresa
   ): Promise<void> {
     const { user } = await createUserWithEmailAndPassword(auth, email, senha);
     dados.id = user.uid;
     const batch = writeBatch(db);
     const refBase = doc(db, 'usuarios', user.uid);
     batch.set(refBase, dados.toFirestoreBase());
-    const colecao = dados.tipo === 'aluno' ? 'alunos' : 'instituicoes';
+    const colecao = dados.tipo === 'estudante' ? 'estudantes' : 'empresas';
     const refEspecifico = doc(db, colecao, user.uid);
     batch.set(refEspecifico, dados.toFirestoreEspecifico());
     await batch.commit();
@@ -35,12 +35,12 @@ export class AuthService {
   static async login(
     email: string,
     senha: string
-  ): Promise<Aluno | Instituicao> {
+  ): Promise<Estudante | Empresa> {
     const { user } = await signInWithEmailAndPassword(auth, email, senha);
     return AuthService.buscarPerfil(user.uid);
   }
 
-  static async buscarPerfil(uid: string): Promise<Aluno | Instituicao> {
+  static async buscarPerfil(uid: string): Promise<Estudante | Empresa> {
     const docBase = await getDoc(doc(db, 'usuarios', uid));
 
     if (!docBase.exists()) {
@@ -50,15 +50,15 @@ export class AuthService {
     const base = docBase.data();
     const tipo: TipoUsuario = base.tipo;
 
-    const colecao = tipo === 'aluno' ? 'alunos' : 'instituicoes';
+    const colecao = tipo === 'estudante' ? 'estudantes' : 'empresas';
     const docEspecifico = await getDoc(doc(db, colecao, uid));
     const especifico = docEspecifico.data() ?? {};
 
-    if (tipo === 'aluno') {
-      return new Aluno({ ...base, ...especifico });
+    if (tipo === 'estudante') {
+      return new Estudante({ ...base, ...especifico });
     }
 
-    return new Instituicao({ ...base, ...especifico });
+    return new Empresa({ ...base, ...especifico });
   }
 
   static async logout(): Promise<void> {

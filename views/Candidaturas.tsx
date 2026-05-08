@@ -1,19 +1,24 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import {
-    View,
-    Text,
+    ActivityIndicator,
     ScrollView,
+    Text,
     TouchableOpacity,
+    View,
 } from "react-native";
 import { Clock, CheckCircle, XCircle, Building2, MapPin } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import styles, { colors } from "../assets/style/estilo";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { db } from "../config/firebase";
+import { useUser } from "../context/UserContext";
+import { AuthService } from "../services/AuthService";
+import { Estudante } from "../models/Estudante";
 
 type Status = "pendente" | "em-analise" | "aprovado" | "recusado";
 
-interface Candidatura {
+interface CandidaturaItem {
     id: string;
     titulo: string;
     instituicao: string;
@@ -21,8 +26,6 @@ interface Candidatura {
     dataCandidatura: string;
     status: Status;
 }
-
-// ─── Status config ────────────────────────────────────────────────────────────
 
 interface StatusConfig {
     text: string;
@@ -63,76 +66,136 @@ const STATUS_CONFIG: Record<Status, StatusConfig> = {
     },
 };
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+function formatarData(data: unknown): string {
+    if (!data) return "Sem data";
 
-const CANDIDATURAS: Candidatura[] = [
-    {
-        id: "1",
-        titulo: "Desenvolvedor Front-end",
-        instituicao: "Tech Solutions",
-        localizacao: "São Paulo, SP",
-        dataCandidatura: "01/04/2026",
-        status: "em-analise",
-    },
-    {
-        id: "2",
-        titulo: "Designer UI/UX",
-        instituicao: "Creative Studio",
-        localizacao: "Rio de Janeiro, RJ",
-        dataCandidatura: "28/03/2026",
-        status: "pendente",
-    },
-    {
-        id: "3",
-        titulo: "Product Manager",
-        instituicao: "StartupXYZ",
-        localizacao: "Curitiba, PR",
-        dataCandidatura: "25/03/2026",
-        status: "aprovado",
-    },
-];
+    if (typeof data === "string") {
+        return data;
+    }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+    if (typeof data === "object" && "toDate" in data && typeof data.toDate === "function") {
+        return data.toDate().toLocaleDateString("pt-BR");
+    }
+
+    return "Sem data";
+}
+
+function normalizarStatus(status: unknown): Status {
+    if (
+        status === "pendente" ||
+        status === "em-analise" ||
+        status === "aprovado" ||
+        status === "recusado"
+    ) {
+        return status;
+    }
+
+    return "pendente";
+}
 
 export default function CandidaturasScreen() {
-    const candidaturas = CANDIDATURAS;
+    const { usuario, setUsuario } = useUser();
+    const [candidaturas, setCandidaturas] = useState<CandidaturaItem[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useFocusEffect(
+        useCallback(() => {
+            async function carregarCandidaturas() {
+                setLoading(true);
+
+                try {
+                    let estudanteLogado = usuario;
+                    const usuarioAtual = AuthService.usuarioAtual();
+
+                    if (!estudanteLogado && usuarioAtual?.uid) {
+                        estudanteLogado = await AuthService.buscarPerfil(usuarioAtual.uid);
+                        setUsuario(estudanteLogado);
+                    }
+
+                    if (!estudanteLogado || estudanteLogado.tipo !== "estudante") {
+                        setCandidaturas([]);
+                        return;
+                    }
+
+                    const estudante = estudanteLogado as Estudante;
+                    const [candidaturasSnapshot, empresasSnapshot] = await Promise.all([
+                        getDocs(query(collection(db, "candidaturas"), where("idCandidato", "==", estudante.id))),
+                        getDocs(collection(db, "empresas")),
+                    ]);
+
+                    const empresasPorId = new Map(
+                        empresasSnapshot.docs.map((documento) => {
+                            const data = documento.data();
+                            return [documento.id, data.nomeEmpresa ?? data.nome ?? documento.id];
+                        })
+                    );
+                    const lista = candidaturasSnapshot.docs.map((documento) => {
+                        const data = documento.data();
+                        const vaga = data.vaga ?? {};
+                        const instituicao =
+                            empresasPorId.get(vaga.idEmpresa) ??
+                            data.instituicao ??
+                            data.nomeEmpresa ??
+                            "Instituição não informada";
+
+                        return {
+                            id: documento.id,
+                            titulo: vaga.titulo ?? data.titulo ?? "Vaga sem título",
+                            instituicao,
+                            localizacao:
+                                vaga.localizacao ??
+                                data.localizacao ??
+                                data.cidade ??
+                                "Local não informado",
+                            dataCandidatura: formatarData(data.createdAt),
+                            status: normalizarStatus(data.status),
+                        };
+                    });
+
+                    setCandidaturas(lista);
+                } catch (error) {
+                    console.log("Erro ao carregar candidaturas:", error);
+                    setCandidaturas([]);
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            carregarCandidaturas();
+        }, [setUsuario, usuario])
+    );
 
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
-
-            {/* ── Header escuro com marca ── */}
-            <View style={styles.appHeader}>
-                <Text style={styles.appHeaderTitle}>SaasWork</Text>
-                <Text style={styles.appHeaderSubtitle}>
-                    Inserção Profissional de Estudantes
-                </Text>
-            </View>
-
             <ScrollView
                 contentContainerStyle={styles.screenContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* ── Card de título da tela ── */}
-                <View style={styles.pageTitleCard}>
+                <View style={{ marginBottom: 16 }}>
                     <Text style={styles.screenHeaderTitle}>Minhas Candidaturas</Text>
                     <Text style={styles.screenHeaderSubtitle}>
                         Acompanhe o status das suas candidaturas
                     </Text>
                 </View>
 
-                {candidaturas.length === 0 ? (
-                    /* Estado vazio */
+                {loading ? (
+                    <View style={styles.emptyCard}>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                        <Text style={[styles.emptySubtitle, { marginTop: 12 }]}>
+                            Carregando candidaturas...
+                        </Text>
+                    </View>
+                ) : candidaturas.length === 0 ? (
                     <View style={styles.emptyCard}>
                         <View style={styles.emptyIconWrapper}>
                             <Building2 size={40} color={colors.placeholder} />
                         </View>
                         <Text style={styles.emptyTitle}>Nenhuma candidatura ainda</Text>
                         <Text style={styles.emptySubtitle}>
-                            Comece a se candidatar nas vagas disponíveis!
+                            Comece a se candidatar nas vagas disponíveis.
                         </Text>
                     </View>
                 ) : (
-                    /* Lista de candidaturas */
                     <View style={{ gap: 12 }}>
                         {candidaturas.map((candidatura) => {
                             const cfg = STATUS_CONFIG[candidatura.status];
@@ -140,7 +203,6 @@ export default function CandidaturasScreen() {
 
                             return (
                                 <View key={candidatura.id} style={styles.candidaturaCard}>
-                                    {/* Topo: título + badge */}
                                     <View style={styles.candidaturaCardTop}>
                                         <View style={{ flex: 1, gap: 4 }}>
                                             <Text style={styles.candidaturaTitle}>
@@ -160,7 +222,6 @@ export default function CandidaturasScreen() {
                                             </View>
                                         </View>
 
-                                        {/* Badge de status */}
                                         <View
                                             style={[
                                                 styles.statusBadge,
@@ -179,7 +240,6 @@ export default function CandidaturasScreen() {
                                         </View>
                                     </View>
 
-                                    {/* Rodapé: data + botão */}
                                     <View style={styles.candidaturaCardFooter}>
                                         <Text style={styles.candidaturaDate}>
                                             Candidatura em {candidatura.dataCandidatura}

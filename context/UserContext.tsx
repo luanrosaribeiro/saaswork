@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, ReactNode } from "react";
-import { Aluno } from "../models/Aluno";
-import { Instituicao } from "../models/Instituicao";
+import { Estudante } from "../models/Estudante";
+import { Empresa } from "../models/Empresa";
 
-type Usuario = Aluno | Instituicao | null;
+type Usuario = Estudante | Empresa | null;
 
 interface UserContextType {
   usuario: Usuario;

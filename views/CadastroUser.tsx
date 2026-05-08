@@ -27,6 +27,7 @@ import {
     ChevronDown,
     Building2,
     FileText,
+    Calendar,
     Plus,
     X,
 } from "lucide-react-native";
@@ -34,14 +35,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import styles from "../assets/style/estilo";
 import { useNavigation } from "@react-navigation/native";
 import { AuthService } from '../services/AuthService';
-import { Aluno } from '../models/Aluno';
-import { Instituicao } from '../models/Instituicao';
+import { Estudante } from '../models/Estudante';
+import { Empresa } from '../models/Empresa';
 import { Endereco } from '../models/Endereco';
 import { Escolaridade } from '../models/Escolaridade';
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../config/firebase";
 
-type UserType = "aluno" | "instituicao" | null;
+type UserType = "estudante" | "empresa" | null;
 
 interface InstituicaoEscolaridade {
     id: string;
@@ -74,14 +75,14 @@ function UserTypeSelection({ onSelectType }: { onSelectType: (t: UserType) => vo
 
             <TouchableOpacity
                 style={styles.userTypeCard}
-                onPress={() => onSelectType("aluno")}
+                onPress={() => onSelectType("estudante")}
                 activeOpacity={0.8}
             >
                 <View style={styles.userTypeIconWrapper}>
                     <GraduationCap size={32} color="#1e3a4f" />
                 </View>
                 <View style={{ flex: 1 }}>
-                    <Text style={styles.userTypeCardTitle}>Sou Aluno</Text>
+                    <Text style={styles.userTypeCardTitle}>Sou Estudante</Text>
                     <Text style={styles.userTypeCardDesc}>Busco oportunidades de estágio</Text>
                 </View>
                 <ChevronRight size={20} color="#9ca3af" />
@@ -89,14 +90,14 @@ function UserTypeSelection({ onSelectType }: { onSelectType: (t: UserType) => vo
 
             <TouchableOpacity
                 style={styles.userTypeCard}
-                onPress={() => onSelectType("instituicao")}
+                onPress={() => onSelectType("empresa")}
                 activeOpacity={0.8}
             >
                 <View style={styles.userTypeIconWrapper}>
                     <Building2 size={32} color="#1e3a4f" />
                 </View>
                 <View style={{ flex: 1 }}>
-                    <Text style={styles.userTypeCardTitle}>Sou Instituição</Text>
+                    <Text style={styles.userTypeCardTitle}>Sou Empresa</Text>
                     <Text style={styles.userTypeCardDesc}>Quero publicar vagas de estágio</Text>
                 </View>
                 <ChevronRight size={20} color="#9ca3af" />
@@ -369,6 +370,8 @@ export default function CadastroUser() {
 
     const [formData, setFormData] = useState({
         nome: "",
+        cpf: "",
+        dt_nascimento: "",
         telefone: "",
         email: "",
         senha: "",
@@ -395,10 +398,10 @@ export default function CadastroUser() {
         anoConclusao: "",
     });
 
-    const totalSteps = userType === "aluno" ? 3 : 2;
+    const totalSteps = userType === "estudante" ? 3 : 2;
 
     const stepLabels =
-        userType === "aluno"
+        userType === "estudante"
             ? ["Dados Pessoais", "Endereço", "Escolaridade"]
             : ["Dados da Empresa", "Endereço"];
 
@@ -471,6 +474,52 @@ export default function CadastroUser() {
 
     const emailValido = (email: string) => /\S+@\S+\.\S+/.test(email.trim());
 
+    const cpfValido = (cpf: string) => {
+        const nums = apenasNumeros(cpf);
+
+        if (nums.length !== 11 || /^(\d)\1{10}$/.test(nums)) {
+            return false;
+        }
+
+        const calcularDigito = (base: string, fatorInicial: number) => {
+            const total = base
+                .split("")
+                .reduce((soma, numero, index) => soma + Number(numero) * (fatorInicial - index), 0);
+            const resto = (total * 10) % 11;
+
+            return resto === 10 ? 0 : resto;
+        };
+
+        const primeiroDigito = calcularDigito(nums.slice(0, 9), 10);
+        const segundoDigito = calcularDigito(nums.slice(0, 10), 11);
+
+        return primeiroDigito === Number(nums[9]) && segundoDigito === Number(nums[10]);
+    };
+
+    const dataNascimentoValida = (data: string) => {
+        const nums = apenasNumeros(data);
+
+        if (nums.length !== 8) {
+            return false;
+        }
+
+        const dia = Number(nums.slice(0, 2));
+        const mes = Number(nums.slice(2, 4));
+        const ano = Number(nums.slice(4, 8));
+        const dataInformada = new Date(ano, mes - 1, dia);
+        const hoje = new Date();
+
+        hoje.setHours(0, 0, 0, 0);
+
+        return (
+            ano >= 1900 &&
+            dataInformada.getFullYear() === ano &&
+            dataInformada.getMonth() === mes - 1 &&
+            dataInformada.getDate() === dia &&
+            dataInformada <= hoje
+        );
+    };
+
     const validarDadosAcesso = () => {
         if (!emailValido(formData.email)) {
             Alert.alert("Atenção", "Informe um e-mail válido.");
@@ -491,9 +540,19 @@ export default function CadastroUser() {
     };
 
     const validarStepAtual = () => {
-        if (userType === "aluno" && currentStep === 1) {
+        if (userType === "estudante" && currentStep === 1) {
             if (campoVazio(formData.nome)) {
                 Alert.alert("Atenção", "Informe seu nome completo.");
+                return false;
+            }
+
+            if (!cpfValido(formData.cpf)) {
+                Alert.alert("Atenção", "Informe um CPF válido.");
+                return false;
+            }
+
+            if (!dataNascimentoValida(formData.dt_nascimento)) {
+                Alert.alert("Atenção", "Informe uma data de nascimento válida.");
                 return false;
             }
 
@@ -505,7 +564,7 @@ export default function CadastroUser() {
             return validarDadosAcesso();
         }
 
-        if (userType === "instituicao" && currentStep === 1) {
+        if (userType === "empresa" && currentStep === 1) {
             if (campoVazio(formData.nomeEmpresa)) {
                 Alert.alert("Atenção", "Informe o nome da empresa.");
                 return false;
@@ -550,7 +609,7 @@ export default function CadastroUser() {
             }
         }
 
-        if (userType === "aluno" && currentStep === 3 && escolaridades.length === 0) {
+        if (userType === "estudante" && currentStep === 3 && escolaridades.length === 0) {
             Alert.alert("Atenção", "Adicione pelo menos uma formação.");
             return false;
         }
@@ -565,6 +624,23 @@ export default function CadastroUser() {
         if (nums.length > 2) masked += `) ${nums.slice(2, 7)}`;
         if (nums.length > 7) masked += `-${nums.slice(7, 11)}`;
         handleInputChange("telefone", masked);
+    };
+
+    const handleCpf = (value: string) => {
+        const nums = apenasNumeros(value).slice(0, 11);
+        let masked = nums;
+        if (nums.length > 3) masked = `${nums.slice(0, 3)}.${nums.slice(3)}`;
+        if (nums.length > 6) masked = `${nums.slice(0, 3)}.${nums.slice(3, 6)}.${nums.slice(6)}`;
+        if (nums.length > 9) masked = `${nums.slice(0, 3)}.${nums.slice(3, 6)}.${nums.slice(6, 9)}-${nums.slice(9)}`;
+        handleInputChange("cpf", masked);
+    };
+
+    const handleDataNascimento = (value: string) => {
+        const nums = apenasNumeros(value).slice(0, 8);
+        let masked = nums;
+        if (nums.length > 2) masked = `${nums.slice(0, 2)}/${nums.slice(2)}`;
+        if (nums.length > 4) masked = `${nums.slice(0, 2)}/${nums.slice(2, 4)}/${nums.slice(4)}`;
+        handleInputChange("dt_nascimento", masked);
     };
 
     const handleCnpj = (value: string) => {
@@ -673,18 +749,20 @@ export default function CadastroUser() {
                 estado: formData.estado,
             });
 
-            let usuario: Aluno | Instituicao;
+            let usuario: Estudante | Empresa;
 
-            if (userType === 'aluno') {
-                usuario = new Aluno({
+            if (userType === 'estudante') {
+                usuario = new Estudante({
                     nome: formData.nome.trim(),
                     email: formData.email.trim(),
                     telefone: formData.telefone,
                     endereco,
+                    cpf: formData.cpf,
+                    dt_nascimento: formData.dt_nascimento,
                     escolaridades: escolaridades.map((e) => new Escolaridade(e)),
                 });
             } else {
-                usuario = new Instituicao({
+                usuario = new Empresa({
                     nome: formData.responsavel.trim(),
                     email: formData.email.trim(),
                     telefone: formData.telefone,
@@ -701,14 +779,20 @@ export default function CadastroUser() {
             navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
 
         } catch (error: any) {
+            console.log("Código do erro no cadastro:", error?.code);
+            console.log("Mensagem do erro no cadastro:", error?.message);
+
             // Tradução dos erros mais comuns do Firebase
             const mensagens: Record<string, string> = {
-            'auth/email-already-in-use': 'Este e-mail já está cadastrado.',
-            'auth/invalid-email': 'E-mail inválido.',
-            'auth/weak-password': 'A senha deve ter pelo menos 6 caracteres.',
+                'auth/email-already-in-use': 'Este e-mail já está cadastrado.',
+                'auth/invalid-email': 'E-mail inválido.',
+                'auth/weak-password': 'A senha deve ter pelo menos 6 caracteres.',
+                'auth/operation-not-allowed': 'O login por e-mail e senha não está ativado no Firebase Authentication.',
+                'auth/invalid-api-key': 'A chave de API do Firebase está inválida.',
+                'auth/network-request-failed': 'Falha de rede ao conectar com o Firebase.',
             };
 
-            const msg = mensagens[error?.code] ?? 'Erro ao cadastrar. Tente novamente.';
+            const msg = mensagens[error?.code] ?? error?.message ?? 'Erro ao cadastrar. Tente novamente.';
             Alert.alert('Erro', msg);
         } finally {
             setLoading(false);
@@ -717,7 +801,7 @@ export default function CadastroUser() {
 
     const canFinish =
         currentStep === totalSteps &&
-        (userType !== "aluno" || escolaridades.length > 0);
+        (userType !== "estudante" || escolaridades.length > 0);
 
     // ── Render ────────────────────────────────────────────────────────────────
 
@@ -791,14 +875,14 @@ export default function CadastroUser() {
                                 </View>
 
                                 <Text style={styles.title}>
-                                    {userType === "aluno"
+                                    {userType === "estudante"
                                         ? "Complete seu cadastro"
-                                        : "Cadastro de Instituição"}
+                                        : "Cadastro de Empresa"}
                                 </Text>
 
                                 <View style={styles.form}>
-                                    {/* ══ STEP 1 — Aluno ══ */}
-                                    {currentStep === 1 && userType === "aluno" && (
+                                    {/* ══ STEP 1 — Estudante ══ */}
+                                    {currentStep === 1 && userType === "estudante" && (
                                         <>
                                             <View style={styles.inputGroup}>
                                                 <Text style={styles.label}>Nome Completo</Text>
@@ -810,6 +894,36 @@ export default function CadastroUser() {
                                                         onChangeText={(v) => handleInputChange("nome", v)}
                                                         style={styles.input}
                                                         placeholderTextColor="#9ca3af"
+                                                    />
+                                                </View>
+                                            </View>
+
+                                            <View style={styles.inputGroup}>
+                                                <Text style={styles.label}>CPF</Text>
+                                                <View style={styles.inputWrapper}>
+                                                    <FileText size={20} color="#9ca3af" />
+                                                    <TextInput
+                                                        placeholder="000.000.000-00"
+                                                        value={formData.cpf}
+                                                        onChangeText={handleCpf}
+                                                        style={styles.input}
+                                                        placeholderTextColor="#9ca3af"
+                                                        keyboardType="numeric"
+                                                    />
+                                                </View>
+                                            </View>
+
+                                            <View style={styles.inputGroup}>
+                                                <Text style={styles.label}>Data de Nascimento</Text>
+                                                <View style={styles.inputWrapper}>
+                                                    <Calendar size={20} color="#9ca3af" />
+                                                    <TextInput
+                                                        placeholder="dd/mm/aaaa"
+                                                        value={formData.dt_nascimento}
+                                                        onChangeText={handleDataNascimento}
+                                                        style={styles.input}
+                                                        placeholderTextColor="#9ca3af"
+                                                        keyboardType="numeric"
                                                     />
                                                 </View>
                                             </View>
@@ -897,8 +1011,8 @@ export default function CadastroUser() {
                                         </>
                                     )}
 
-                                    {/* ══ STEP 1 — Instituição ══ */}
-                                    {currentStep === 1 && userType === "instituicao" && (
+                                    {/* ══ STEP 1 — Empresa ══ */}
+                                    {currentStep === 1 && userType === "empresa" && (
                                         <>
                                             <View style={styles.inputGroup}>
                                                 <Text style={styles.label}>Nome da Empresa</Text>
@@ -1139,8 +1253,8 @@ export default function CadastroUser() {
                                         </>
                                     )}
 
-                                    {/* ══ STEP 3 — Escolaridade (apenas aluno) ══ */}
-                                    {currentStep === 3 && userType === "aluno" && (
+                                    {/* ══ STEP 3 — Escolaridade (apenas estudante) ══ */}
+                                    {currentStep === 3 && userType === "estudante" && (
                                         <>
                                             {/* Lista de escolaridades já adicionadas */}
                                             {escolaridades.length > 0 && (
@@ -1241,7 +1355,7 @@ export default function CadastroUser() {
                                                     }
                                                 />
                                                 <YearPicker
-                                                    label="Ano Conclusão"
+                                                    label="Ano de Provável Conclusão"
                                                     value={escolaridadeAtual.anoConclusao}
                                                     onChange={(v) =>
                                                         handleEscolaridadeChange("anoConclusao", v)

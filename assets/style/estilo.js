@@ -126,17 +126,23 @@ export default StyleSheet.create({
 
   buttonPrimary: {
     backgroundColor: colors.primary,
-    paddingVertical: 14,
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
     flex: 1,
   },
 
   buttonSecondary: {
     backgroundColor: colors.border,
-    paddingVertical: 14,
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
     flex: 1,
   },
 
@@ -147,11 +153,15 @@ export default StyleSheet.create({
   buttonText: {
     color: colors.white,
     fontWeight: "600",
+    lineHeight: 20,
+    textAlign: "center",
   },
 
   buttonTextSecondary: {
     color: colors.labelDark,
     fontWeight: "500",
+    lineHeight: 20,
+    textAlign: "center",
   },
 
   buttonsContainer: {
@@ -299,7 +309,9 @@ export default StyleSheet.create({
 
   addButton: {
     backgroundColor: colors.inputBg,
-    padding: 12,
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 10,
     alignItems: "center",
     marginTop: 10,
@@ -311,6 +323,8 @@ export default StyleSheet.create({
   addButtonText: {
     color: colors.labelDark,
     fontWeight: "500",
+    lineHeight: 20,
+    textAlign: "center",
   },
 
   removeButton: {
@@ -751,15 +765,20 @@ export default StyleSheet.create({
 
   candidatarButton: {
     backgroundColor: colors.primary,
+    minHeight: 40,
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   candidatarButtonText: {
     color: colors.white,
     fontSize: 13,
     fontWeight: "600",
+    lineHeight: 18,
+    textAlign: "center",
   },
 
   // ── App header (header global escuro com marca) ───────────────────────────────

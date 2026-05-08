@@ -6,7 +6,7 @@ import { BottomNav } from "./views/BottomNav";
 import Login from "./views/Login";
 import CadastroUser from "./views/CadastroUser";
 import HomeCandidato from "./views/HomeCandidato";
-import HomeInstituicao from "./views/HomeInstituicao";
+import HomeEmpresa from "./views/HomeEmpresa";
 
 
 const Stack = createNativeStackNavigator();
@@ -25,8 +25,8 @@ export default function App() {
               options={{ gestureEnabled: false }}
             />
             <Stack.Screen
-              name="HomeInstituicao"
-              component={HomeInstituicao}
+              name="HomeEmpresa"
+              component={HomeEmpresa}
               options={{ gestureEnabled: false }}
             />
             <Stack.Screen

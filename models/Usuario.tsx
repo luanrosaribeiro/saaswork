@@ -1,6 +1,6 @@
 import { Endereco } from './Endereco';
 
-export type TipoUsuario = 'aluno' | 'instituicao';
+export type TipoUsuario = 'estudante' | 'empresa';
 
 export abstract class Usuario {
   public id: string;
@@ -16,7 +16,7 @@ export abstract class Usuario {
     this.nome = objeto?.nome ?? '';
     this.email = objeto?.email ?? '';
     this.telefone = objeto?.telefone ?? '';
-    this.tipo = objeto?.tipo ?? 'aluno';
+    this.tipo = objeto?.tipo ?? 'estudante';
     this.endereco = objeto?.endereco
       ? new Endereco(objeto.endereco)
       : new Endereco();

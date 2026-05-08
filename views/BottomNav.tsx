@@ -1,6 +1,6 @@
 // views/BottomNav.tsx
 import { useEffect, useState } from "react";
-import { Home, Briefcase, User, PlusCircle } from "lucide-react-native";
+import { Award, Home, Briefcase, User, PlusCircle } from "lucide-react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { ActivityIndicator, Text, View } from "react-native";
 import styles, { colors } from "../assets/style/estilo";
@@ -8,11 +8,12 @@ import { useUser } from "../context/UserContext";
 import { AuthService } from "../services/AuthService";
 
 import HomeCandidato from "./HomeCandidato";
-import HomeInstituicao from "./HomeInstituicao";
+import HomeEmpresa from "./HomeEmpresa";
 import Candidaturas from "./Candidaturas";
 import CadastroVaga from "./CadastroVaga";
-
-const PerfilScreen = () => <View style={{ flex: 1, backgroundColor: colors.background }} />;
+import Qualificacoes from "./Qualificacoes";
+import Perfil from "./Perfil";
+import DetalhesVagaEmpresa from "./DetalhesVagaEmpresa";
 
 const Tab = createBottomTabNavigator();
 
@@ -59,7 +60,7 @@ export function BottomNav() {
     );
   }
 
-  const isAluno = usuario?.tipo === "aluno";
+  const isEstudante = usuario?.tipo === "estudante";
 
   return (
     <Tab.Navigator
@@ -73,7 +74,7 @@ export function BottomNav() {
         tabBarItemStyle: styles.tabBarItem,
       }}
     >
-      {isAluno ? (
+      {isEstudante ? (
         <>
           <Tab.Screen
             name="home-candidato"
@@ -95,12 +96,22 @@ export function BottomNav() {
               ),
             }}
           />
+          <Tab.Screen
+            name="qualificacoes"
+            component={Qualificacoes}
+            options={{
+              tabBarLabel: "Qualificações",
+              tabBarIcon: ({ focused, color }) => (
+                <Award size={24} color={color} fill={focused ? colors.primary : "transparent"} />
+              ),
+            }}
+          />
         </>
       ) : (
         <>
           <Tab.Screen
-            name="home-instituicao"
-            component={HomeInstituicao}
+            name="home-empresa"
+            component={HomeEmpresa}
             options={{
               tabBarLabel: "Home",
               tabBarIcon: ({ focused, color }) => (
@@ -118,13 +129,21 @@ export function BottomNav() {
               ),
             }}
           />
+          <Tab.Screen
+            name="DetalhesVagaEmpresa"
+            component={DetalhesVagaEmpresa}
+            options={{
+              tabBarButton: () => null,
+              tabBarItemStyle: { display: "none" },
+            }}
+          />
         </>
       )}
 
       {/* Perfil — igual para todos */}
       <Tab.Screen
         name="perfil"
-        component={PerfilScreen}
+        component={Perfil}
         options={{
           tabBarLabel: "Perfil",
           tabBarIcon: ({ focused, color }) => (
