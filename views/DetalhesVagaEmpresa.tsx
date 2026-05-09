@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -18,6 +18,7 @@ import {
     GraduationCap,
     Mail,
     MapPin,
+    Pencil,
     Phone,
     User,
     Users,
@@ -105,6 +106,28 @@ export default function DetalhesVagaEmpresa() {
     const [candidatos, setCandidatos] = useState<CandidatoVaga[]>([]);
     const [candidatoAbertoId, setCandidatoAbertoId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [statusVagaMap, setStatusVagaMap] = useState<Record<string, string>>({});
+
+    const editarVaga = () => {
+        if (!vagaId) return;
+        navigation.navigate("CadastroVaga", { vagaId, modo: "editar" });
+    };
+
+    useEffect(() => {
+    async function carregarStatusVaga() {
+        try {
+            const snapshot = await getDocs(collection(db, "status_vaga"));
+            const mapa: Record<string, string> = {};
+            snapshot.docs.forEach((documento) => {
+                const data = documento.data();
+                mapa[documento.id] = data.nome ?? data.descricao ?? documento.id;
+            });
+            setStatusVagaMap(mapa);
+        } catch (_) {}
+    }
+
+    carregarStatusVaga();
+}, []);
 
     useFocusEffect(
         useCallback(() => {
@@ -140,7 +163,7 @@ export default function DetalhesVagaEmpresa() {
                             })}`
                             : "Sem bolsa",
                         publicadoEm: formatarData(data.publicadoEm ?? data.createdAt),
-                        status: getStatusLabel(data.status),
+                        status: statusVagaMap[data.idStatusVaga] ?? getStatusLabel(data.idStatusVaga)
                     });
 
                     const idsCandidatos = candidaturasSnapshot.docs
@@ -348,6 +371,17 @@ export default function DetalhesVagaEmpresa() {
                                     </View>
                                 </View>
                             </View>
+
+                            <TouchableOpacity
+                                style={[styles.buttonPrimary, { flex: 0 }]}
+                                onPress={editarVaga}
+                                activeOpacity={0.8}
+                            >
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                    <Pencil size={18} color="#fff" />
+                                    <Text style={styles.buttonText}>Atualizar vaga</Text>
+                                </View>
+                            </TouchableOpacity>
                         </View>
 
                         <View style={{ marginTop: 4 }}>

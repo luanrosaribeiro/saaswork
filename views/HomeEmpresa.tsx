@@ -226,7 +226,7 @@ export default function HomeEmpresa() {
     const vagasAtivas = vagas.filter((vaga) => vaga.status === "ativa").length;
     const totalCandidatos = vagas.reduce((total, vaga) => total + vaga.candidatos, 0);
     const handleCadastrarVaga = () => {
-        navigation.navigate("CadastroVaga");
+        navigation.navigate("CadastroVaga", { vagaId: null, modo: "criar" });
     };
     const handleGerenciarVaga = (vagaId: string) => {
         navigation.navigate("DetalhesVagaEmpresa", { vagaId });

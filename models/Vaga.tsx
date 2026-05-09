@@ -9,6 +9,7 @@ export class Vaga {
   public valorBolsa: number;
   public idTipoVaga: string;
   public idInstituicaoFoco: string;
+  public idStatusVaga: string;
 
   constructor(objeto?: Partial<Vaga>) {
     this.id = objeto?.id ?? '';
@@ -21,6 +22,7 @@ export class Vaga {
     this.valorBolsa = objeto?.valorBolsa ?? 0;
     this.idTipoVaga = objeto?.idTipoVaga ?? '';
     this.idInstituicaoFoco = objeto?.idInstituicaoFoco ?? 'todos';
+    this.idStatusVaga = objeto?.idStatusVaga ?? '';
   }
 
   toFirestore() {
@@ -35,6 +37,7 @@ export class Vaga {
       valorBolsa: this.valorBolsa,
       idTipoVaga: this.idTipoVaga,
       idInstituicaoFoco: this.idInstituicaoFoco,
+      idStatusVaga: this.idStatusVaga,
     };
   }
 }

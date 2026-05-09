@@ -122,6 +122,11 @@ export function BottomNav() {
           <Tab.Screen
             name="CadastroVaga"
             component={CadastroVaga}
+            listeners={({ navigation }) => ({
+              tabPress: () => {
+                navigation.setParams({ vagaId: null, modo: "criar" });
+              },
+            })}
             options={{
               tabBarLabel: "Nova Vaga",
               tabBarIcon: ({ focused, color }) => (

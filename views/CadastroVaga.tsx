@@ -22,8 +22,8 @@ import {
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import styles from "../assets/style/estilo";
-import { useNavigation } from "@react-navigation/native";
-import { collection, addDoc, getDocs, updateDoc, doc } from "firebase/firestore";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { collection, addDoc, getDocs, updateDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { Vaga } from "../models/Vaga";
 import { useUser } from "../context/UserContext";
@@ -37,6 +37,16 @@ interface TipoVaga {
 interface InstituicaoEscolaridade {
     id: string;
     nome: string;
+}
+
+interface RouteParams {
+    vagaId?: string | null;
+    modo?: "criar" | "editar";
+}
+
+interface StatusVaga {
+    id: string;
+    descricao: string;
 }
 
 // ── Picker de Tipo de Vaga ────────────────────────────────────────────────────
@@ -158,18 +168,83 @@ function InstituicaoFocoPicker({
     );
 }
 
+function StatusVagaPicker({
+    value,
+    onChange,
+    statusList,
+}: {
+    value: string;
+    onChange: (v: string) => void;
+    statusList: StatusVaga[];
+}) {
+    const [open, setOpen] = useState(false);
+    const label = statusList.find((s) => s.id === value)?.descricao ?? "Selecione";
+
+    return (
+        <View style={{ gap: 6 }}>
+            <TouchableOpacity
+                style={styles.inputWrapper}
+                onPress={() => setOpen(!open)}
+                activeOpacity={0.8}
+            >
+                <CheckSquare size={20} color="#9ca3af" />
+                <Text style={[styles.input, { color: value ? "#374151" : "#9ca3af" }]}>
+                    {label}
+                </Text>
+                <ChevronDown size={18} color="#9ca3af" />
+            </TouchableOpacity>
+
+            {open && (
+                <View style={styles.yearDropdown}>
+                    <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                        {statusList.map((status) => (
+                            <TouchableOpacity
+                                key={status.id}
+                                style={[
+                                    styles.yearOption,
+                                    value === status.id && styles.yearOptionActive,
+                                ]}
+                                onPress={() => {
+                                    onChange(status.id);
+                                    setOpen(false);
+                                }}
+                            >
+                                <Text
+                                    style={[
+                                        styles.yearOptionText,
+                                        value === status.id && styles.yearOptionTextActive,
+                                    ]}
+                                >
+                                    {status.descricao}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
+        </View>
+    );
+}
+
 // ── Tela principal ────────────────────────────────────────────────────────────
 export default function CadastrarVaga() {
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
+    const { vagaId, modo } = (route.params ?? {}) as RouteParams;
     const { usuario } = useUser();
+    const isEdicao = Boolean(vagaId) && modo !== "criar";
 
     const [loading, setLoading] = useState(false);
+    const [loadingVaga, setLoadingVaga] = useState(false);
     const [loadingTipos, setLoadingTipos] = useState(true);
     const [loadingInstituicoes, setLoadingInstituicoes] = useState(true);
+    const [loadingStatus, setLoadingStatus] = useState(true);
     const [tiposVaga, setTiposVaga] = useState<TipoVaga[]>([]);
     const [instituicoes, setInstituicoes] = useState<InstituicaoEscolaridade[]>([]);
     const [temBolsa, setTemBolsa] = useState(false);
     const [valorBolsa, setValorBolsa] = useState("");
+    const [idEmpresaOriginal, setIdEmpresaOriginal] = useState("");
+    const [statusVagaList, setStatusVagaList] = useState<StatusVaga[]>([]);
 
     const [formData, setFormData] = useState({
         titulo: "",
@@ -178,7 +253,23 @@ export default function CadastrarVaga() {
         cargaHoraria: "",
         idTipoVaga: "",
         idInstituicaoFoco: "todos",
+        idStatusVaga: "",
     });
+
+    const limparFormulario = () => {
+        setTemBolsa(false);
+        setValorBolsa("");
+        setIdEmpresaOriginal("");
+        setFormData({
+            titulo: "",
+            descricao: "",
+            exigencias: "",
+            cargaHoraria: "",
+            idTipoVaga: "",
+            idInstituicaoFoco: "todos",
+            idStatusVaga: "",
+        });
+    };
 
     // ── Carrega tipos de vaga do Firestore ────────────────────────────────────
     useEffect(() => {
@@ -223,6 +314,80 @@ export default function CadastrarVaga() {
 
         carregarInstituicoes();
     }, []);
+
+    // ── Carrega status de vaga do Firestore ────────────────────────────────────
+    useEffect(() => {
+        async function carregarStatus() {
+            try {
+                const snapshot = await getDocs(collection(db, "status_vaga"));
+                const lista: StatusVaga[] = snapshot.docs.map((doc) => ({
+                    id: doc.id,
+                    descricao: doc.data().nome ?? doc.data().descricao ?? doc.id,
+                }));
+                setStatusVagaList(lista);
+            } catch (_) {
+                Alert.alert("Erro", "Não foi possível carregar os status de vaga.");
+            } finally {
+                setLoadingStatus(false);
+            }
+        }
+
+        carregarStatus();
+    }, []);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            async function carregarVagaParaEdicao() {
+                if (!isEdicao || !vagaId) {
+                    limparFormulario();
+                    setLoadingVaga(false);
+                    return;
+                }
+
+                setLoadingVaga(true);
+
+                try {
+                    const snapshot = await getDoc(doc(db, "vagas", vagaId));
+
+                    if (!snapshot.exists()) {
+                        Alert.alert("Erro", "Vaga não encontrada.");
+                        navigation.goBack();
+                        return;
+                    }
+
+                    const data = snapshot.data();
+                    const possuiBolsa = Boolean(data.temBolsa);
+
+                    setIdEmpresaOriginal(data.idEmpresa ?? "");
+                    setTemBolsa(possuiBolsa);
+                    setValorBolsa(
+                        possuiBolsa && data.valorBolsa
+                            ? Number(data.valorBolsa).toLocaleString("pt-BR", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                            })
+                            : ""
+                    );
+                    setFormData({
+                        titulo: data.titulo ?? "",
+                        descricao: data.descricao ?? "",
+                        exigencias: data.exigencias ?? "",
+                        cargaHoraria: data.cargaHoraria ? String(data.cargaHoraria) : "",
+                        idTipoVaga: data.idTipoVaga ?? "",
+                        idInstituicaoFoco: data.idInstituicaoFoco ?? "todos",
+                        idStatusVaga: data.idStatusVaga ?? "",
+                    });
+                } catch (_) {
+                    Alert.alert("Erro", "Não foi possível carregar os dados da vaga.");
+                    navigation.goBack();
+                } finally {
+                    setLoadingVaga(false);
+                }
+            }
+
+            carregarVagaParaEdicao();
+        }, [isEdicao, navigation, vagaId])
+    );
 
     const handleInputChange = (name: keyof typeof formData, value: string) => {
         setFormData((prev) => ({ ...prev, [name]: value }));
@@ -269,6 +434,10 @@ export default function CadastrarVaga() {
                 return false;
             }
         }
+        if (!formData.idStatusVaga) {
+            Alert.alert("Atenção", "Selecione o status da vaga.");
+            return false;
+        }
         return true;
     };
 
@@ -278,7 +447,7 @@ export default function CadastrarVaga() {
         setLoading(true);
         try {
             const vaga = new Vaga({
-                idEmpresa: usuario?.id ?? "",
+                idEmpresa: isEdicao ? idEmpresaOriginal : usuario?.id ?? "",
                 titulo: formData.titulo.trim(),
                 descricao: formData.descricao.trim(),
                 exigencias: formData.exigencias.trim(),
@@ -287,17 +456,38 @@ export default function CadastrarVaga() {
                 valorBolsa: temBolsa ? valorBolsaNumerico() : 0,
                 idTipoVaga: formData.idTipoVaga,
                 idInstituicaoFoco: formData.idInstituicaoFoco,
+                idStatusVaga: formData.idStatusVaga,
             });
 
-            const docRef = await addDoc(collection(db, "vagas"), vaga.toFirestore());
+            if (isEdicao && vagaId) {
+                await updateDoc(doc(db, "vagas", vagaId), {
+                    ...vaga.toFirestore(),
+                    id: vagaId,
+                    atualizadoEm: new Date(),
+                });
 
-            // Atualiza o id com o gerado pelo Firestore
+                navigation.navigate("DetalhesVagaEmpresa", { vagaId });
+                Alert.alert("Sucesso!", "Vaga atualizada com sucesso.");
+                return;
+            }
+
+            const docRef = await addDoc(collection(db, "vagas"), vaga.toFirestore());
             await updateDoc(doc(db, "vagas", docRef.id), { id: docRef.id });
+
             Alert.alert("Sucesso!", "Vaga cadastrada com sucesso.", [
-                { text: "OK", onPress: () => navigation.goBack() },
+                {
+                    text: "OK",
+                    onPress: () =>
+                        navigation.navigate("DetalhesVagaEmpresa", { vagaId: docRef.id }),
+                },
             ]);
         } catch (_) {
-            Alert.alert("Erro", "Não foi possível cadastrar a vaga. Tente novamente.");
+            Alert.alert(
+                "Erro",
+                isEdicao
+                    ? "Não foi possível atualizar a vaga. Tente novamente."
+                    : "Não foi possível cadastrar a vaga. Tente novamente."
+            );
         } finally {
             setLoading(false);
         }
@@ -315,12 +505,16 @@ export default function CadastrarVaga() {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View style={styles.card}>
-                        <Text style={styles.title}>Cadastrar Vaga</Text>
+                        <Text style={styles.title}>
+                            {isEdicao ? "Atualizar Vaga" : "Cadastrar Vaga"}
+                        </Text>
                         <Text style={styles.subtitle}>
-                            Preencha os dados da vaga de estágio
+                            {isEdicao
+                                ? "Edite os dados da vaga cadastrada"
+                                : "Preencha os dados da vaga de estágio"}
                         </Text>
 
-                        {loadingTipos || loadingInstituicoes ? (
+                        {loadingTipos || loadingInstituicoes || loadingVaga ? (
                             <ActivityIndicator
                                 size="large"
                                 color="#1e3a4f"
@@ -448,6 +642,15 @@ export default function CadastrarVaga() {
                                     </View>
                                 </View>
 
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Status da Vaga</Text>
+                                    <StatusVagaPicker
+                                        value={formData.idStatusVaga}
+                                        onChange={(v) => handleInputChange("idStatusVaga", v)}
+                                        statusList={statusVagaList}
+                                    />
+                                </View>
+
                                 {/* Descrição */}
                                 <View style={styles.inputGroup}>
                                     <Text style={styles.label}>Descrição</Text>
@@ -494,7 +697,9 @@ export default function CadastrarVaga() {
                                     ) : (
                                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                                             <FileText size={18} color="#fff" />
-                                            <Text style={styles.buttonText}>Publicar Vaga</Text>
+                                            <Text style={styles.buttonText}>
+                                                {isEdicao ? "Salvar alterações" : "Publicar Vaga"}
+                                            </Text>
                                         </View>
                                     )}
                                 </TouchableOpacity>
